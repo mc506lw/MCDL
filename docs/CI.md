@@ -29,7 +29,7 @@ cargo test -p mcdl-core -p mcdl                                  # 测试
 | --- | --- | --- |
 | `cargo fmt --check` | ✅ 绿 | `fee1736 style: 统一格式（cargo fmt，无逻辑改动）` 落地，全工作区干净 |
 | `cargo clippy -D warnings` | ✅ 绿 | `5d010ec fix(java): 修 clippy 的两条 lint` 之后 0 警告 |
-| `cargo test` | ✅ 绿 | 57 passed / 0 failed / 9 ignored |
+| `cargo test` | ✅ 绿 | 58 passed / 0 failed / 9 ignored（`ignored` 恒为 9，`passed` 会随测试增加） |
 | `cargo build --release -p mcdl` | ✅ | 4,151,296 字节（3.96 MiB），LTO + strip 后 |
 
 三个 job 现在都是硬门禁，没有 `continue-on-error`。
@@ -96,7 +96,7 @@ cargo test -p mcdl-core -p mcdl                                  # 测试
 - 这些用例会真下载几十 MB，既慢又费流量；
 - `loader::real_fabric_install` 还要求 runner 上装了 Java，而 CI 里并没有装。
 
-`cargo test -p mcdl-core -p mcdl` 默认就不跑它们（输出里 `57 passed; 9 ignored`），**CI 不需要额外参数**。想手动跑：
+`cargo test -p mcdl-core -p mcdl` 默认就不跑它们（输出里 `58 passed; 9 ignored`；`ignored` 恒为 9，`passed` 会随测试增加），**CI 不需要额外参数**。想手动跑：
 
 ```bash
 cargo test -p mcdl-core -- --ignored                          # 全部
@@ -199,13 +199,13 @@ python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
 
 | 命令 | 结果 |
 | --- | --- |
-| `cargo test -p mcdl-core` | ✅ 57 passed / 0 failed / 9 ignored |
+| `cargo test -p mcdl-core` | ✅ 58 passed / 0 failed / 9 ignored |
 | `cargo run -p mcdl -- versions --release-only` | ✅ 正常列出 26.3 |
 | `cargo run -p mcdl -- install 1.20.4 --no-assets --dir ./tmp-fresh` | ✅ 65 文件 / 82.9 MB，232 s，Java 17 |
 | `cd app && pnpm install && pnpm build` | ✅ 通过（pnpm 11.25.0，6 s） |
 | `cargo fmt --all -- --check` | ✅ 通过（**在 `.gitattributes` 落地之后**） |
 | `cargo clippy -p mcdl-core -p mcdl --all-targets -- -D warnings` | ✅ 通过 |
-| `cargo test -p mcdl-core -p mcdl` | ✅ 57 passed / 9 ignored |
+| `cargo test -p mcdl-core -p mcdl` | ✅ 58 passed / 9 ignored |
 | `cargo check -p mcdl-app` | ✅ 通过（前提：先 `pnpm build` 生成 `app/dist`） |
 
 这次验证修掉的三类问题（都只动文档 / 仓库配置，没动代码）：
