@@ -25,6 +25,10 @@ impl HttpClient {
             .user_agent(crate::user_agent())
             .connect_timeout(std::time::Duration::from_secs(15))
             .timeout(std::time::Duration::from_secs(120))
+            // 卡住的连接必须能被发现：单次读超过 30 秒没有字节就判失败重试。
+            // 下载大文件时总超时被放宽到 30 分钟，没有这一条的话
+            // 一条僵死的 TCP 连接会安静地占住一个 worker，进度永远停在 N/N-1。
+            .read_timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| crate::Error::Http(e.to_string()))?;
         Ok(Self { inner })

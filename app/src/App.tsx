@@ -16,6 +16,7 @@ import { useInstall } from './lib/useInstall';
 import { InstallPage } from './pages/InstallPage';
 import { LogsPage } from './pages/LogsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { VersionsPage } from './pages/VersionsPage';
 
 export default function App() {
   const [section, setSection] = useState<Section>('install');
@@ -143,6 +144,13 @@ export default function App() {
             onOpenDir={openDir}
             onOpenSettings={() => setSection('settings')}
             demo={!IS_TAURI}
+          />
+        )}
+
+        {section === 'versions' && (
+          <VersionsPage
+            gameDir={settings.gameDir || defaultDir}
+            onOpenSettings={() => setSection('settings')}
           />
         )}
 

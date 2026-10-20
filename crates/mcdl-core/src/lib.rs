@@ -13,6 +13,7 @@
 pub mod download;
 pub mod error;
 pub mod install;
+pub mod installed;
 pub mod java;
 pub mod loader;
 pub mod meta;
@@ -22,6 +23,7 @@ pub mod types;
 
 pub use error::{Error, Result};
 pub use install::Installer;
+pub use installed::InstalledVersion;
 pub use types::*;
 
 /// 本库的版本号，写进 User-Agent 与日志。

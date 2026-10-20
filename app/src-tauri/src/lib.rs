@@ -4,12 +4,12 @@
 //! [`Progress`] 通过 IPC channel 推回前端。任何下载、校验、解压逻辑都不写在这里，
 //! 否则 CLI 和 GUI 就会各有一份实现。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use mcdl_core::{
-    java, loader, meta, Error, InstallReport, InstallRequest, JavaRuntime, LoaderKind, Progress,
-    ProgressSink, Source, VersionManifest,
+    installed::InstalledVersion, java, loader, meta, Error, InstallReport, InstallRequest,
+    JavaRuntime, LoaderKind, Progress, ProgressSink, Source, VersionManifest,
 };
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -178,10 +178,23 @@ fn open_game_dir(app: tauri::AppHandle, path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 列出某个游戏目录里已经装好的版本（按最近改动排序）。
+#[tauri::command]
+fn list_installed(game_dir: String) -> Result<Vec<InstalledVersion>, String> {
+    mcdl_core::installed::list(Path::new(&game_dir)).map_err(|e| e.to_string())
+}
+
+/// 删掉一个已装版本。只删 `versions/<id>/`，共享的 libraries / assets 不动。
+#[tauri::command]
+fn remove_version(game_dir: String, id: String) -> Result<(), String> {
+    mcdl_core::installed::remove(Path::new(&game_dir), &id).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             list_versions,
@@ -192,6 +205,8 @@ pub fn run() {
             list_runtimes,
             default_game_dir,
             open_game_dir,
+            list_installed,
+            remove_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

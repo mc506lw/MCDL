@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
-import { api } from '../lib/api';
+import { api, IS_TAURI } from '../lib/api';
 import { formatDate } from '../lib/format';
 import type { Settings } from '../lib/settings';
 import {
@@ -103,6 +103,21 @@ export function InstallForm({
 
   const releases = versions?.versions.filter((v) => v.type === 'release') ?? [];
   const latest = versions?.latest.release ?? '';
+
+  /** 用系统原生对话框选目录。浏览器预览里没有这个能力，按钮会自己隐藏。 */
+  async function pickDirectory() {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: '选择 .minecraft 所在目录',
+      });
+      if (typeof picked === 'string' && picked) setGameDir(picked);
+    } catch (e) {
+      setError(`打开目录选择器失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -287,6 +302,16 @@ export function InstallForm({
             disabled={running}
             spellCheck={false}
           />
+          {IS_TAURI && (
+            <button
+              className="ef-btn small"
+              type="button"
+              onClick={pickDirectory}
+              disabled={running}
+            >
+              浏览…
+            </button>
+          )}
           <button
             className="ef-btn small"
             type="button"

@@ -103,3 +103,18 @@ export const SOURCE_LABEL: Record<Source, string> = {
   official: '官方源',
   bmclapi: 'BMCLAPI 第三方镜像',
 };
+
+/** 磁盘上的一个已装版本，对应引擎 `installed::InstalledVersion`。 */
+export interface InstalledVersion {
+  /** `versions/` 下的目录名，也是删除时用的标识 */
+  id: string;
+  /** release / snapshot / old_beta / old_alpha */
+  kind: string;
+  /** 认出来的模组加载器，原版是 null */
+  loader: string | null;
+  main_class: string;
+  bytes: number;
+  files: number;
+  /** 目录最后修改时间（Unix 秒） */
+  modified: number;
+}

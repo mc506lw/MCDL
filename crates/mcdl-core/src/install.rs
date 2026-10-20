@@ -56,6 +56,10 @@ impl Installer {
         let paths = GamePaths::new(&req.game_dir);
         paths.prepare()?;
 
+        // 用户取消（future 被 abort）或中途出错时，把这次新造的版本目录清掉。
+        // 已下好的 libraries / assets 不动：它们是内容寻址的共享缓存，下次直接复用。
+        let mut guard = PartialVersionGuard::new(paths.versions());
+
         // 探测一次，规划阶段和解析 Java 都复用这份结果（D7：原来跑两遍，多花 1s 且日志重复）
         let detected = java::detect();
         let mut plan = Self::plan_stages(req, &detected);
@@ -183,6 +187,8 @@ impl Installer {
 
         // 9. 收尾：把解析后的版本 JSON 落盘，方便其它启动器直接识别
         self.write_version_json(&paths, &detail)?;
+        // 到这一步才算真的装完，之后取消/出错都不该再删目录
+        guard.disarm();
 
         let report = InstallReport {
             version_id: detail.id.clone(),
@@ -654,6 +660,39 @@ fn tree_stats(dirs: &[&Path]) -> (u64, u64) {
     }
 
     (bytes, files)
+}
+
+/// 安装未完成时清掉本次新造的版本目录。
+///
+/// 用户取消时，Tauri 侧是 `abort()` 掉整个 future，`?` 的错误分支根本不会走，
+/// 所以清理必须挂在 `Drop` 上；成功路径由 [`Installer::run`] 主动 `disarm`。
+struct PartialVersionGuard {
+    versions: PathBuf,
+    before: std::collections::BTreeSet<String>,
+    armed: bool,
+}
+
+impl PartialVersionGuard {
+    fn new(versions: PathBuf) -> Self {
+        let before = version_dir_names(&versions);
+        Self {
+            versions,
+            before,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PartialVersionGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            discard_new_version_dirs(&self.versions, &self.before);
+        }
+    }
 }
 
 /// `versions/` 下现有的目录名。

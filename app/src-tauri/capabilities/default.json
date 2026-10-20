@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "MCDL 主窗口：自定义标题栏拖拽、窗口按钮，以及在文件管理器里打开游戏目录",
+  "description": "MCDL 主窗口：自定义标题栏拖拽、窗口按钮、选择游戏目录，以及在文件管理器里打开它",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -12,6 +12,7 @@
     "core:window:allow-unmaximize",
     "core:window:allow-close",
     "opener:default",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "dialog:allow-open"
   ]
 }

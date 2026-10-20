@@ -20,5 +20,6 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+tauri-plugin-dialog = "2.7.3"
 
 # 发布 profile 统一由根 workspace 的 Cargo.toml 决定，这里不再重复声明。

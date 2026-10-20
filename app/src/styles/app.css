@@ -629,3 +629,47 @@ body.ef {
     font-size: 2.4rem;
   }
 }
+
+/* ---- 版本页 ---------------------------------------------------------- */
+
+.version-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.version-main {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.version-id {
+  font-family: var(--ef-font-ui);
+  font-stretch: var(--ef-wide);
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-meta {
+  color: var(--ef-ink-2);
+  font-size: var(--ef-t-field);
+  font-stretch: var(--ef-wide);
+  font-variant-numeric: tabular-nums;
+}
+
+.version-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.version-warn {
+  color: var(--ef-ink-2);
+  font-size: var(--ef-t-field);
+}

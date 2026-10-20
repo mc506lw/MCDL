@@ -7,6 +7,7 @@ import type {
   InstallEvent,
   InstallReport,
   InstallRequest,
+  InstalledVersion,
   JavaRuntime,
   LoaderKind,
   VersionManifest,
@@ -17,9 +18,11 @@ import {
   detectJavaMock,
   installMock,
   listLoadersMock,
+  listInstalledMock,
   listRuntimesMock,
   listVersionsMock,
   openGameDirMock,
+  removeVersionMock,
 } from './mock';
 
 /** 是否跑在 Tauri 窗口里。 */
@@ -78,6 +81,20 @@ export const api = {
     if (!IS_TAURI) return listLoadersMock(kind);
     const { invoke } = await core();
     return invoke<string[]>('list_loaders', { kind, mcVersion });
+  },
+
+  /** 游戏目录下已经装好的版本，按最近改动排序。 */
+  async listInstalled(gameDir: string): Promise<InstalledVersion[]> {
+    if (!IS_TAURI) return listInstalledMock(gameDir);
+    const { invoke } = await core();
+    return invoke<InstalledVersion[]>('list_installed', { gameDir });
+  },
+
+  /** 删掉一个已装版本。只删 `versions/<id>/`，共享的 libraries / assets 不动。 */
+  async removeVersion(gameDir: string, id: string): Promise<void> {
+    if (!IS_TAURI) return removeVersionMock(id);
+    const { invoke } = await core();
+    await invoke('remove_version', { gameDir, id });
   },
 
   /** 游戏目录下已经落盘的 JRE：`runtime/jre-<major>/bin/java.exe`。 */

@@ -23,7 +23,9 @@ use crate::error::{Error, Result};
 use crate::java::hide_console;
 use crate::net::HttpClient;
 use crate::paths::GamePaths;
-use crate::types::{LoaderKind, LoaderSpec, LogLevel, Progress, ProgressSink, Source, StageKind};
+use crate::types::{
+    DownloadJob, LoaderKind, LoaderSpec, LogLevel, Progress, ProgressSink, Source, StageKind,
+};
 
 /// 安装加载器需要的外部环境。
 pub struct LoaderCtx<'a> {
@@ -48,7 +50,9 @@ pub struct LoaderResult {
 const FABRIC_META: &str = "https://meta.fabricmc.net/v2";
 const QUILT_META: &str = "https://meta.quiltmc.org/v3";
 const FORGE_MAVEN: &str = "https://maven.minecraftforge.net";
-const NEOFORGE_MAVEN: &str = "https://maven.neoforged.net/releases";
+/// NeoForge 官方 CDN：内容和 `maven.neoforged.net/releases` 完全一致，但国内可达。
+/// 官方源一律用它——原站经常解析到污染地址，留着当"备选"只会多一条走不通的路。
+const NEOFORGE_CDN: &str = "https://neoforged.forgecdn.net/releases";
 /// BMCLAPI 的 maven 透传前缀：用户显式选了镜像时，Forge 系从这里下。
 const BMCLAPI_MAVEN: &str = "https://bmclapi2.bangbang93.com/maven";
 
@@ -109,6 +113,12 @@ pub async fn install(
 
     // installer 自己会往 versions/ 里写目录，装完用差集找出它写了哪个。
     let before: HashSet<String> = version_dirs(ctx.paths).into_iter().collect();
+
+    // NeoForge 的 installer 不认 --mirror（实测 68 个库仍直连 maven.neoforged.net），
+    // 但官方 CDN 是通的。先把库从 CDN 预取到 libraries/，installer 见文件已存在就跳过下载。
+    if spec.kind == LoaderKind::NeoForge {
+        prefetch_neoforge_libraries(ctx, &jar, sink).await?;
+    }
 
     let mut args: Vec<OsString> = jvm_args();
     args.push("-jar".into());
@@ -669,11 +679,119 @@ fn forge_base(source: Source) -> &'static str {
     }
 }
 
+/// NeoForge 的 maven 根地址。
+///
+/// 官方源直接指向 CDN（`neoforged.forgecdn.net`）：它和 `maven.neoforged.net`
+/// 是同一份内容，但后者在国内经常解析到污染地址。两者都写在这里，
+/// 是为了让「CDN 挂了还能退回原站」这件事有据可查。
 fn neoforge_base(source: Source) -> &'static str {
     match source {
-        Source::Official => NEOFORGE_MAVEN,
+        Source::Official => NEOFORGE_CDN,
         Source::Bmclapi => BMCLAPI_MAVEN,
     }
+}
+
+/// 把 NeoForge installer 需要的库从官方 CDN 预取到 `libraries/`。
+///
+/// 为什么不用 `--mirror`：实测 NeoForge 的 installer 对自家 maven 完全无视该参数
+/// （68 个库仍然直连 `maven.neoforged.net`），而国区这个域名经常不可达。
+/// installer 在下载前会检查目标文件是否已存在，所以先把文件放好，它就会跳过网络。
+///
+/// 清单来自 jar 里的两份 JSON：`version.json`（运行时库）和 `install_profile.json`
+/// （installer 自己的处理器库），缺一份都装不完。
+async fn prefetch_neoforge_libraries(
+    ctx: &LoaderCtx<'_>,
+    installer: &Path,
+    sink: &dyn ProgressSink,
+) -> Result<()> {
+    let jobs = neoforge_library_jobs(ctx, installer)?;
+    if jobs.is_empty() {
+        return Ok(());
+    }
+
+    sink.emit(Progress::Log {
+        level: LogLevel::Info,
+        message: format!(
+            "NeoForge 的 {} 个库改从官方 CDN 预取（maven.neoforged.net 在国内常不可达）",
+            jobs.len()
+        ),
+    });
+
+    let outcome = crate::download::run_batch(ctx.client, jobs, 8, sink, StageKind::Loader).await?;
+    tracing::info!(
+        downloaded = outcome.downloaded,
+        skipped = outcome.skipped,
+        "NeoForge 库预取完成"
+    );
+    Ok(())
+}
+
+/// 从 installer jar 里读出所有指向 neoforged maven 的库，改写成 CDN 地址。
+fn neoforge_library_jobs(ctx: &LoaderCtx<'_>, installer: &Path) -> Result<Vec<DownloadJob>> {
+    let file = std::fs::File::open(installer).map_err(|e| Error::io(installer, e))?;
+    let mut zip = zip::ZipArchive::new(file)
+        .map_err(|e| Error::Loader(format!("打不开 installer jar：{e}")))?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut jobs = Vec::new();
+
+    for name in ["version.json", "install_profile.json"] {
+        // `by_name` 会可变借用 archive，读完立刻释放，才能进下一轮。
+        let json: Option<serde_json::Value> = {
+            match zip.by_name(name) {
+                Ok(mut entry) => {
+                    let mut raw = String::new();
+                    std::io::Read::read_to_string(&mut entry, &mut raw)
+                        .map_err(|e| Error::Loader(format!("读 {name} 失败：{e}")))?;
+                    serde_json::from_str(&raw).ok()
+                }
+                Err(_) => None,
+            }
+        };
+
+        let Some(json) = json else { continue };
+        let Some(libs) = json.get("libraries").and_then(|v| v.as_array()) else {
+            continue;
+        };
+
+        for lib in libs {
+            let art = lib.get("downloads").and_then(|d| d.get("artifact"));
+            let url = art
+                .and_then(|a| a.get("url"))
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            if !url.contains("maven.neoforged.net") {
+                continue;
+            }
+
+            let path = art
+                .and_then(|a| a.get("path"))
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    url.split("/releases/")
+                        .nth(1)
+                        .unwrap_or_default()
+                        .to_string()
+                });
+            if path.is_empty() || !seen.insert(path.clone()) {
+                continue;
+            }
+
+            jobs.push(DownloadJob {
+                url: url.replacen("https://maven.neoforged.net/releases", NEOFORGE_CDN, 1),
+                dest: ctx.paths.libraries().join(&path),
+                sha1: art
+                    .and_then(|a| a.get("sha1"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned),
+                size: art.and_then(|a| a.get("size")).and_then(|v| v.as_u64()),
+                label: path,
+            });
+        }
+    }
+
+    Ok(jobs)
 }
 
 /// NeoForge 版本号前缀：MC 1.21.1 → `21.1.`，MC 1.21 → `21.0.`，MC 26.3 → `26.3.`。
@@ -1430,7 +1548,7 @@ mod tests {
         let (url, file) = neoforge_installer_location("1.21.1", "21.1.264", Source::Official);
         assert_eq!(
             url,
-            "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.264/neoforge-21.1.264-installer.jar"
+            "https://neoforged.forgecdn.net/releases/net/neoforged/neoforge/21.1.264/neoforge-21.1.264-installer.jar"
         );
         assert_eq!(file, "neoforge-21.1.264-installer.jar");
 
@@ -1438,7 +1556,7 @@ mod tests {
         let (url, _) = neoforge_installer_location("1.20.1", "47.1.106", Source::Official);
         assert_eq!(
             url,
-            "https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-47.1.106/forge-1.20.1-47.1.106-installer.jar"
+            "https://neoforged.forgecdn.net/releases/net/neoforged/forge/1.20.1-47.1.106/forge-1.20.1-47.1.106-installer.jar"
         );
 
         // 镜像源换前缀，路径保持 maven 布局

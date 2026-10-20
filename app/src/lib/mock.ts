@@ -11,6 +11,7 @@ import type {
   InstallEvent,
   InstallReport,
   InstallRequest,
+  InstalledVersion,
   JavaRuntime,
   Progress,
   StageKind,
@@ -316,4 +317,54 @@ export function defaultGameDirMock(): Promise<string> {
 
 export function openGameDirMock(): Promise<void> {
   return Promise.reject(new Error('浏览器里打不开文件管理器，装成桌面应用后可用。'));
+}
+
+/** 演示用的已装版本。接真后端时这些数字都来自磁盘扫描。 */
+const INSTALLED_DEMO: InstalledVersion[] = [
+  {
+    id: '1.21.8',
+    kind: 'release',
+    loader: null,
+    main_class: 'net.minecraft.client.main.Main',
+    bytes: 612_344_512,
+    files: 4188,
+    modified: 1792000000,
+  },
+  {
+    id: 'fabric-loader-0.19.5-1.21.1',
+    kind: 'release',
+    loader: 'Fabric',
+    main_class: 'net.fabricmc.loader.impl.launch.knot.KnotClient',
+    bytes: 96_141_312,
+    files: 96,
+    modified: 1791900000,
+  },
+  {
+    id: '1.20.4-forge-49.2.13',
+    kind: 'release',
+    loader: 'Forge',
+    main_class: 'net.minecraftforge.bootstrap.ForgeBootstrap',
+    bytes: 188_743_680,
+    files: 141,
+    modified: 1791800000,
+  },
+];
+
+export function listInstalledMock(_gameDir: string): Promise<InstalledVersion[]> {
+  return new Promise((resolve) =>
+    window.setTimeout(() => resolve([...INSTALLED_DEMO]), 240),
+  );
+}
+
+export function removeVersionMock(id: string): Promise<void> {
+  return new Promise((resolve, reject) =>
+    window.setTimeout(() => {
+      const i = INSTALLED_DEMO.findIndex((v) => v.id === id);
+      if (i < 0) reject(new Error(`没有这个版本：${id}`));
+      else {
+        INSTALLED_DEMO.splice(i, 1);
+        resolve();
+      }
+    }, 220),
+  );
 }
