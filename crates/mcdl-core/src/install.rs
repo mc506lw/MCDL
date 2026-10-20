@@ -58,7 +58,7 @@ impl Installer {
 
         // 探测一次，规划阶段和解析 Java 都复用这份结果（D7：原来跑两遍，多花 1s 且日志重复）
         let detected = java::detect();
-        let plan = Self::plan_stages(req, &detected);
+        let mut plan = Self::plan_stages(req, &detected);
 
         // 1. 元数据
         self.begin(sink, &plan, StageKind::Meta, "读取版本清单");
@@ -78,7 +78,7 @@ impl Installer {
             .java_major
             .unwrap_or_else(|| java::required_major(&detail.id));
         let java_path = self
-            .resolve_java(req, java_major, sink, &plan, &detected)
+            .resolve_java(req, java_major, sink, &mut plan, &detected)
             .await?;
 
         // 3. 文件清单
@@ -242,12 +242,17 @@ impl Installer {
     // ------------------------------------------------------------ Java
 
     /// 解析要用的 Java：显式指定 > 本机探测 > 自动下载。
+    ///
+    /// `plan` 是 `&mut`：`plan_stages` 只能按版本号字符串预估 Java 需求，
+    /// 而版本 JSON 里的 `javaVersion` 才是准的（例如 26.3 要 Java 25，按字符串只推得出 21）。
+    /// 预估偏低时，把 `Java` 阶段插到 `Meta` 之后——因为此刻正好就停在那个位置，
+    /// 这样后续阶段的序号会整体后移一位，UI 看到的序号始终是单调递增的。
     async fn resolve_java(
         &self,
         req: &InstallRequest,
         major: u32,
         sink: &dyn ProgressSink,
-        plan: &[StageKind],
+        plan: &mut Vec<StageKind>,
         detected: &[JavaRuntime],
     ) -> Result<PathBuf> {
         if let Some(path) = &req.java {
@@ -261,6 +266,10 @@ impl Installer {
         }
 
         if let Some(rt) = java::pick(detected, major) {
+            // 计划里有这个阶段就照常发一次，避免阶段轨道上留一个空号。
+            if plan.contains(&StageKind::Java) {
+                self.begin(sink, plan, StageKind::Java, "检查 Java 运行时");
+            }
             sink.emit(Progress::Log {
                 level: LogLevel::Info,
                 message: format!("使用本机 Java {}（{}）", rt.major, rt.vendor),
@@ -268,7 +277,10 @@ impl Installer {
             return Ok(rt.path.clone());
         }
 
-        // 计划里没有 Java 阶段说明预估偏低，这里补一个。
+        // 本机没有能用的：预估漏了就补进计划（紧跟在 Meta 后面），然后下载。
+        if !plan.contains(&StageKind::Java) {
+            plan.insert(1, StageKind::Java);
+        }
         self.begin(sink, plan, StageKind::Java, "获取 Java 运行时");
         let dir = GamePaths::new(&req.game_dir).root().join("runtime");
         java::ensure(&self.client, major, &dir, sink).await
@@ -346,10 +358,7 @@ impl Installer {
                 if let Some(classifier) = native_table.get(&self.env.os) {
                     let key = classifier.replace("${arch}", arch_bits(&self.env.arch));
                     if let Some(art) = lib.downloads.classifiers.get(&key) {
-                        let path = art
-                            .path
-                            .clone()
-                            .unwrap_or_else(|| maven_to_path(&lib.name));
+                        let path = art.path.clone().unwrap_or_else(|| maven_to_path(&lib.name));
                         let dest = paths.libraries().join(&path);
                         natives.push(DownloadJob {
                             url: art.url.clone(),
@@ -391,9 +400,7 @@ impl Installer {
             return Ok((Vec::new(), None, 0, AssetLayout::Plain));
         };
 
-        let index_dest = paths
-            .asset_indexes()
-            .join(format!("{}.json", index_ref.id));
+        let index_dest = paths.asset_indexes().join(format!("{}.json", index_ref.id));
         let index_job = DownloadJob {
             url: index_ref.url.clone(),
             dest: index_dest.clone(),
@@ -443,9 +450,7 @@ impl Installer {
         let Some(index_ref) = &detail.asset_index else {
             return Ok(());
         };
-        let index_path = paths
-            .asset_indexes()
-            .join(format!("{}.json", index_ref.id));
+        let index_path = paths.asset_indexes().join(format!("{}.json", index_ref.id));
         let raw = std::fs::read(&index_path).map_err(|e| Error::io(&index_path, e))?;
         let index: AssetIndex = serde_json::from_slice(&raw)?;
 
@@ -489,7 +494,9 @@ impl Installer {
             if !meta::rules_allow(&lib.rules, &self.env) {
                 continue;
             }
-            let Some(natives) = &lib.natives else { continue };
+            let Some(natives) = &lib.natives else {
+                continue;
+            };
             let Some(classifier) = natives.get(&self.env.os) else {
                 continue;
             };
@@ -497,10 +504,7 @@ impl Installer {
             let Some(art) = lib.downloads.classifiers.get(&key) else {
                 continue;
             };
-            let path = art
-                .path
-                .clone()
-                .unwrap_or_else(|| maven_to_path(&lib.name));
+            let path = art.path.clone().unwrap_or_else(|| maven_to_path(&lib.name));
             let jar = paths.libraries().join(path);
             let exclude = lib
                 .extract
@@ -581,10 +585,7 @@ impl Installer {
             );
         }
 
-        root.insert(
-            "libraries".into(),
-            serde_json::to_value(&detail.libraries)?,
-        );
+        root.insert("libraries".into(), serde_json::to_value(&detail.libraries)?);
         if let Some(major) = detail.java_major {
             root.insert(
                 "javaVersion".into(),

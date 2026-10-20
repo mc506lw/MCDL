@@ -1,0 +1,15 @@
+# rustfmt 基线配置。
+#
+# 目的只有一个：让所有人（和 CI）用同一套规则，避免 review 里出现纯格式噪音。
+# 只使用 **stable** 选项；nightly-only 的选项（imports_granularity、group_imports 等）
+# 会让 `cargo fmt` 在 stable 上报警告，这里一律不用。
+#
+# 当前仓库还没有做一次全量格式化（见 docs/CI.md「格式化基线」一节），
+# 这份配置先固定规则，格式化留到单独的提交里做。
+edition = "2021"
+
+# 与现有代码的手写宽度一致，不引入新的换行风格。
+max_width = 100
+
+# 统一 LF：CI 跑在 Linux 上，Windows 侧由 git 的 autocrlf 负责转换。
+newline_style = "Unix"

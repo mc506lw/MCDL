@@ -123,11 +123,7 @@ pub async fn install(
 
     sink.emit(Progress::Log {
         level: LogLevel::Info,
-        message: format!(
-            "执行：{} {}",
-            ctx.java.display(),
-            display_args(&args)
-        ),
+        message: format!("执行：{} {}", ctx.java.display(), display_args(&args)),
     });
     tracing::debug!(
         java = %ctx.java.display(),
@@ -235,9 +231,7 @@ pub async fn available_loader_versions(
     mc_version: &str,
 ) -> Result<Vec<String>> {
     let all = cached_loader_versions(client, kind, mc_version, Source::Official).await?;
-    Ok(limit_versions(
-        all.into_iter().map(|v| v.version).collect(),
-    ))
+    Ok(limit_versions(all.into_iter().map(|v| v.version).collect()))
 }
 
 /// UI 下拉框最多要多少条：上千个版本没人翻，渲染还慢。
@@ -574,7 +568,11 @@ async fn supported_mc_versions_with(
             let mut out = Vec::new();
             let url = format!("{base}/net/neoforged/neoforge/maven-metadata.xml");
             if let Ok(xml) = client.get_text(&url).await {
-                out.extend(xml_versions(&xml).into_iter().filter_map(|v| neoforge_mc_of(&v)));
+                out.extend(
+                    xml_versions(&xml)
+                        .into_iter()
+                        .filter_map(|v| neoforge_mc_of(&v)),
+                );
             }
             let url = format!("{base}/net/neoforged/forge/maven-metadata.xml");
             if let Ok(xml) = client.get_text(&url).await {
@@ -626,7 +624,10 @@ fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
         let x = pa.get(i).copied().unwrap_or((0, ""));
         let y = pb.get(i).copied().unwrap_or((0, ""));
         match x.0.cmp(&y.0) {
-            Ordering::Equal => match suffix_rank(x.1).cmp(&suffix_rank(y.1)).then_with(|| x.1.cmp(y.1)) {
+            Ordering::Equal => match suffix_rank(x.1)
+                .cmp(&suffix_rank(y.1))
+                .then_with(|| x.1.cmp(y.1))
+            {
                 Ordering::Equal => continue,
                 other => return other,
             },
@@ -679,7 +680,11 @@ fn neoforge_base(source: Source) -> &'static str {
 fn neoforge_prefix(mc_version: &str) -> String {
     let nums = mc_numbers(mc_version);
     match nums.first().copied().unwrap_or(1) {
-        1 => format!("{}.{}.", nums.get(1).copied().unwrap_or(0), nums.get(2).copied().unwrap_or(0)),
+        1 => format!(
+            "{}.{}.",
+            nums.get(1).copied().unwrap_or(0),
+            nums.get(2).copied().unwrap_or(0)
+        ),
         major => format!("{major}.{}.", nums.get(1).copied().unwrap_or(0)),
     }
 }
@@ -769,7 +774,8 @@ async fn fetch_installer_with(
     source: Source,
     sink: &dyn ProgressSink,
 ) -> Result<PathBuf> {
-    let (url, file_name) = installer_location(client, kind, mc_version, loader_version, source).await?;
+    let (url, file_name) =
+        installer_location(client, kind, mc_version, loader_version, source).await?;
     std::fs::create_dir_all(cache_dir).map_err(|e| Error::io(cache_dir, e))?;
     let dest = cache_dir.join(&file_name);
 
@@ -810,7 +816,10 @@ async fn installer_location(
                 .get_json(&format!("{FABRIC_META}/versions/installer"))
                 .await
                 .unwrap_or_default();
-            let picked = entries.iter().find(|e| e.stable).or_else(|| entries.first());
+            let picked = entries
+                .iter()
+                .find(|e| e.stable)
+                .or_else(|| entries.first());
             Ok(match picked {
                 Some(e) => (e.url.clone(), format!("fabric-installer-{}.jar", e.version)),
                 None => (
@@ -838,7 +847,11 @@ async fn installer_location(
             })
         }
         LoaderKind::Forge => Ok(forge_installer_location(mc_version, loader_version, source)),
-        LoaderKind::NeoForge => Ok(neoforge_installer_location(mc_version, loader_version, source)),
+        LoaderKind::NeoForge => Ok(neoforge_installer_location(
+            mc_version,
+            loader_version,
+            source,
+        )),
     }
 }
 
@@ -874,10 +887,7 @@ fn neoforge_installer_location(
     (url, format!("{artifact}-{version}-installer.jar"))
 }
 
-fn neoforge_coords(
-    mc_version: &str,
-    loader_version: &str,
-) -> (&'static str, &'static str, String) {
+fn neoforge_coords(mc_version: &str, loader_version: &str) -> (&'static str, &'static str, String) {
     if mc_at_most(mc_version, 1, 20, 1) {
         let version = if loader_version.starts_with(&format!("{mc_version}-")) {
             loader_version.to_string()
@@ -967,7 +977,8 @@ fn absolute(path: &Path) -> PathBuf {
     }
 }
 
-fn is_jar(path: &Path) -> bool {    use std::io::Read;
+fn is_jar(path: &Path) -> bool {
+    use std::io::Read;
     let Ok(mut f) = std::fs::File::open(path) else {
         return false;
     };
@@ -983,10 +994,14 @@ fn is_jar(path: &Path) -> bool {    use std::io::Read;
 /// 所有 installer 都跑在 UTF-8 下：Windows 中文系统默认 GBK，
 /// 不强制的话 installer 输出的中文在日志里全是乱码。
 fn jvm_args() -> Vec<OsString> {
-    ["-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8"]
-        .into_iter()
-        .map(OsString::from)
-        .collect()
+    [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect()
 }
 
 fn installer_args(
@@ -1133,10 +1148,7 @@ fn pump_lines<R: std::io::Read>(reader: R, tx: UnboundedSender<String>) {
 /// Forge 每处理一个 class 就缩进输出一行，这种噪声不往界面上送。
 fn worth_showing(line: &str) -> bool {
     let trimmed = line.trim();
-    !trimmed.is_empty()
-        && trimmed.len() <= 300
-        && !line.starts_with(' ')
-        && !line.starts_with('\t')
+    !trimmed.is_empty() && trimmed.len() <= 300 && !line.starts_with(' ') && !line.starts_with('\t')
 }
 
 fn tail(lines: &[String], n: usize) -> String {
@@ -1329,7 +1341,9 @@ mod tests {
     }
 
     fn arg_strings(args: &[OsString]) -> Vec<String> {
-        args.iter().map(|a| a.to_string_lossy().into_owned()).collect()
+        args.iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
     }
 
     #[test]
@@ -1344,7 +1358,15 @@ mod tests {
         ));
         assert_eq!(
             fabric,
-            ["client", "-dir", "C:/mc", "-mcversion", "1.21.1", "-loader", "0.16.9"]
+            [
+                "client",
+                "-dir",
+                "C:/mc",
+                "-mcversion",
+                "1.21.1",
+                "-loader",
+                "0.16.9"
+            ]
         );
 
         let quilt = arg_strings(&installer_args(
@@ -1356,7 +1378,13 @@ mod tests {
         ));
         assert_eq!(
             quilt,
-            ["install", "client", "1.21.1", "0.27.0", "--install-dir=C:/mc"]
+            [
+                "install",
+                "client",
+                "1.21.1",
+                "0.27.0",
+                "--install-dir=C:/mc"
+            ]
         );
     }
 
@@ -1469,11 +1497,15 @@ mod tests {
             expected_version_ids(LoaderKind::Forge, "1.21.1", "52.1.20"),
             ["1.21.1-forge-52.1.20"]
         );
-        assert!(expected_version_ids(LoaderKind::NeoForge, "1.21.1", "21.1.264")
-            .contains(&"neoforge-21.1.264".to_string()));
+        assert!(
+            expected_version_ids(LoaderKind::NeoForge, "1.21.1", "21.1.264")
+                .contains(&"neoforge-21.1.264".to_string())
+        );
         // 老 NeoForge 版本号带 MC 前缀
-        assert!(expected_version_ids(LoaderKind::NeoForge, "1.20.1", "1.20.1-47.1.106")
-            .contains(&"1.20.1-neoforge-47.1.106".to_string()));
+        assert!(
+            expected_version_ids(LoaderKind::NeoForge, "1.20.1", "1.20.1-47.1.106")
+                .contains(&"1.20.1-neoforge-47.1.106".to_string())
+        );
     }
 
     #[test]
@@ -1566,9 +1598,7 @@ mod tests {
         // 收尾语也在摘录里，调用方会去重
         assert!(excerpt.iter().any(|l| l.contains("There was an error")));
         // 纯进度行不该被当成错误
-        assert!(!excerpt
-            .iter()
-            .any(|l| l.starts_with("Considering library")));
+        assert!(!excerpt.iter().any(|l| l.starts_with("Considering library")));
 
         assert!(hint_for(LoaderKind::Forge, &lines.join("\n")).contains("maven"));
         // NeoForge 的提示必须点名它自己的域名，并说明 --mirror 无效
@@ -1607,10 +1637,7 @@ mod tests {
                 stable: true,
             }],
         );
-        assert_eq!(
-            loader_cache_get(lkey).unwrap()[0].version,
-            "0.19.5"
-        );
+        assert_eq!(loader_cache_get(lkey).unwrap()[0].version, "0.19.5");
         assert!(mc_cache_get(lkey).is_none());
     }
 
@@ -1751,7 +1778,10 @@ mod tests {
                 &loaders[..loaders.len().min(5)]
             );
         }
-        eprintln!("fabric loaders（前 5）：{:?}（冷查询 {cold:?}）", &loaders[..5.min(loaders.len())]);
+        eprintln!(
+            "fabric loaders（前 5）：{:?}（冷查询 {cold:?}）",
+            &loaders[..5.min(loaders.len())]
+        );
 
         // 第二次必须命中进程内缓存，不再打网络
         let started = std::time::Instant::now();
@@ -1760,7 +1790,10 @@ mod tests {
             .unwrap();
         let warm = started.elapsed();
         assert_eq!(loaders, again);
-        assert!(warm < std::time::Duration::from_millis(50), "缓存没生效：{warm:?}");
+        assert!(
+            warm < std::time::Duration::from_millis(50),
+            "缓存没生效：{warm:?}"
+        );
         eprintln!("fabric loaders 二次查询命中缓存：{warm:?}");
 
         let mcs = supported_mc_versions(&client, LoaderKind::Fabric)
@@ -1770,7 +1803,8 @@ mod tests {
         eprintln!("fabric 支持 {} 个 MC 版本", mcs.len());
 
         // 公开的 fetch_installer 也要能用（缓存目录随便给一个）
-        let cache = std::env::temp_dir().join(format!("mcdl-installer-cache-{}", std::process::id()));
+        let cache =
+            std::env::temp_dir().join(format!("mcdl-installer-cache-{}", std::process::id()));
         let spec = LoaderSpec::new(LoaderKind::Fabric, "1.21.1").with_version("0.16.9");
         let jar = fetch_installer(&client, LoaderKind::Fabric, &spec, &cache)
             .await
@@ -1789,26 +1823,38 @@ mod tests {
             .await
             .unwrap();
         assert!(forge.iter().any(|v| v.starts_with("52.")), "{forge:?}");
-        eprintln!("forge 1.21.1 loaders（前 3）：{:?}", &forge[..3.min(forge.len())]);
+        eprintln!(
+            "forge 1.21.1 loaders（前 3）：{:?}",
+            &forge[..3.min(forge.len())]
+        );
 
         let forge_mcs = supported_mc_versions(&client, LoaderKind::Forge)
             .await
             .unwrap();
         assert!(forge_mcs.contains(&"1.21.1".to_string()));
-        assert!(forge_mcs.contains(&"1.12.2".to_string()), "老版本也要在列表里");
+        assert!(
+            forge_mcs.contains(&"1.12.2".to_string()),
+            "老版本也要在列表里"
+        );
         eprintln!("forge 支持 {} 个 MC 版本", forge_mcs.len());
 
         let quilt = available_loader_versions(&client, LoaderKind::Quilt, "1.21.1")
             .await
             .unwrap();
         assert!(!quilt.is_empty());
-        eprintln!("quilt 1.21.1 loaders（前 3）：{:?}", &quilt[..3.min(quilt.len())]);
+        eprintln!(
+            "quilt 1.21.1 loaders（前 3）：{:?}",
+            &quilt[..3.min(quilt.len())]
+        );
 
         // 官方 maven.neoforged.net 在部分网络下不通，这里走镜像验证解析逻辑
         let neo = loader_versions(&client, LoaderKind::NeoForge, "1.21.1", Source::Bmclapi)
             .await
             .unwrap();
-        assert!(neo.iter().any(|v| v.version.starts_with("21.1.")), "{neo:?}");
+        assert!(
+            neo.iter().any(|v| v.version.starts_with("21.1.")),
+            "{neo:?}"
+        );
         eprintln!(
             "neoforge 1.21.1 loaders（前 3）：{:?}",
             neo.iter().take(3).map(|v| &v.version).collect::<Vec<_>>()
@@ -1841,7 +1887,13 @@ mod tests {
         eprintln!("version_id = {}", result.version_id);
         eprintln!("main_class = {:?}", result.main_class);
         eprintln!("files = {}", result.files.len());
-        eprintln!("log 末尾：\n{}", tail(&result.log.lines().map(str::to_string).collect::<Vec<_>>(), 10));
+        eprintln!(
+            "log 末尾：\n{}",
+            tail(
+                &result.log.lines().map(str::to_string).collect::<Vec<_>>(),
+                10
+            )
+        );
 
         assert!(paths.version_dir(&result.version_id).is_dir());
         assert!(paths.version_json(&result.version_id).is_file());

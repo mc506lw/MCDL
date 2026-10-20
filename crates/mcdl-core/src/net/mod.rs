@@ -40,7 +40,10 @@ impl HttpClient {
         let value = serde_json::from_slice(&body).map_err(|e| {
             // 镜像返回 HTML 错误页是这里最常见的事故，所以把 URL 和响应长度一起记下来。
             tracing::error!(url, bytes = body.len(), error = %e, "响应不是合法 JSON");
-            Error::other(format!("{url} 返回的不是合法 JSON（{} 字节）：{e}", body.len()))
+            Error::other(format!(
+                "{url} 返回的不是合法 JSON（{} 字节）：{e}",
+                body.len()
+            ))
         })?;
         Ok(value)
     }
@@ -82,8 +85,7 @@ impl HttpClient {
 }
 
 /// 版本清单地址（永远是官方）。
-pub const MANIFEST_URL: &str =
-    "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+pub const MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
 /// 依赖库文件的地址前缀。
 pub fn library_base(source: Source) -> &'static str {

@@ -214,10 +214,7 @@ impl Default for Env {
 #[serde(untagged)]
 pub enum Arg {
     Plain(String),
-    Conditional {
-        rules: Vec<Rule>,
-        value: ArgValue,
-    },
+    Conditional { rules: Vec<Rule>, value: ArgValue },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

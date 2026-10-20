@@ -70,7 +70,10 @@ impl ProgressSink for StdoutSink {
 
         match progress {
             Progress::Stage {
-                index, total, label, ..
+                index,
+                total,
+                label,
+                ..
             } => {
                 self.last_pct.store(usize::MAX, Ordering::Relaxed);
                 println!("\n[{index}/{total}] {label}");

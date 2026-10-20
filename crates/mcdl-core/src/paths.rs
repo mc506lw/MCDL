@@ -101,7 +101,11 @@ mod tests {
     #[test]
     fn version_paths_follow_mojang_layout() {
         let p = GamePaths::new("/mc");
-        assert!(p.version_json("1.21.1").ends_with("versions/1.21.1/1.21.1.json"));
-        assert!(p.version_jar("1.21.1").ends_with("versions/1.21.1/1.21.1.jar"));
+        assert!(p
+            .version_json("1.21.1")
+            .ends_with("versions/1.21.1/1.21.1.json"));
+        assert!(p
+            .version_jar("1.21.1")
+            .ends_with("versions/1.21.1/1.21.1.jar"));
     }
 }

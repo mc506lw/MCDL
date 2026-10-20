@@ -253,10 +253,7 @@ async fn fetch_to_file(
 
     let status = resp.status();
     if !status.is_success() {
-        return Err(Error::Http(format!(
-            "GET {} 返回 HTTP {status}",
-            job.url
-        )));
+        return Err(Error::Http(format!("GET {} 返回 HTTP {status}", job.url)));
     }
 
     let mut file = tokio::fs::File::create(tmp).await.at(tmp)?;
@@ -328,12 +325,8 @@ pub fn verify(path: &Path, expected: Option<&str>) -> Result<bool> {
 /// 返回解压出来的文件数。目录结构和 jar 里一致，但会拒绝 `..` 之类的穿越路径。
 pub fn extract_natives(jar: &Path, dest: &Path, exclude: &[String]) -> Result<usize> {
     let file = std::fs::File::open(jar).at(jar)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-        Error::other(format!(
-            "打不开 natives 压缩包（{}）：{e}",
-            jar.display()
-        ))
-    })?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| Error::other(format!("打不开 natives 压缩包（{}）：{e}", jar.display())))?;
 
     std::fs::create_dir_all(dest).at(dest)?;
     let mut extracted = 0usize;
@@ -404,10 +397,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!(
-            "mcdl-{tag}-{}-{nanos}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("mcdl-{tag}-{}-{nanos}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -443,7 +433,10 @@ mod tests {
         let good = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
 
         assert!(verify(&path, Some(good)).unwrap());
-        assert!(verify(&path, Some(&good.to_uppercase())).unwrap(), "大小写不敏感");
+        assert!(
+            verify(&path, Some(&good.to_uppercase())).unwrap(),
+            "大小写不敏感"
+        );
         assert!(!verify(&path, Some("0000000000000000000000000000000000000000")).unwrap());
         assert!(verify(&path, None).unwrap(), "没有期望值就认为可用");
         assert!(verify(&path, Some("  ")).unwrap(), "空白等于没有期望值");
@@ -564,9 +557,15 @@ mod tests {
     #[tokio::test]
     async fn run_batch_with_no_jobs_is_noop() {
         let client = HttpClient::new().unwrap();
-        let outcome = run_batch(&client, Vec::new(), 8, &crate::types::NullSink, StageKind::Assets)
-            .await
-            .unwrap();
+        let outcome = run_batch(
+            &client,
+            Vec::new(),
+            8,
+            &crate::types::NullSink,
+            StageKind::Assets,
+        )
+        .await
+        .unwrap();
         assert_eq!(outcome.downloaded, 0);
         assert_eq!(outcome.skipped, 0);
         assert_eq!(outcome.bytes, 0);
@@ -757,10 +756,7 @@ mod tests {
             remote.sha1.clone().unwrap(),
             "SHA1 要和官方一致"
         );
-        println!(
-            "client.jar {} 字节，下载 + 校验耗时 {:?}",
-            size, elapsed
-        );
+        println!("client.jar {} 字节，下载 + 校验耗时 {:?}", size, elapsed);
 
         // 再跑一次必须走跳过分支（不联网）
         let again = std::time::Instant::now();

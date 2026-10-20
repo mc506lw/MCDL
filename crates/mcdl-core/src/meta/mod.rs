@@ -156,9 +156,7 @@ fn merge_detail(mut base: VersionDetail, child: VersionDetail) -> VersionDetail 
 /// （macOS 的 dylib）。按 name 去重会把带 natives 的那条覆盖掉，macOS 上就少解压
 /// 一个动态库。所以 key 必须是「name + artifact 落盘路径 + natives 表」。
 fn same_library(a: &Library, b: &Library) -> bool {
-    a.name == b.name
-        && artifact_path(a) == artifact_path(b)
-        && a.natives == b.natives
+    a.name == b.name && artifact_path(a) == artifact_path(b) && a.natives == b.natives
 }
 
 fn artifact_path(lib: &Library) -> Option<&str> {
@@ -432,10 +430,7 @@ mod tests {
         Env {
             os: os.to_string(),
             arch: arch.to_string(),
-            features: features
-                .iter()
-                .map(|(k, v)| (k.to_string(), *v))
-                .collect(),
+            features: features.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
         }
     }
 
@@ -768,7 +763,10 @@ mod tests {
         for (os, arch) in envs {
             let env = env_with(os, arch, &[]);
             assert!(rules_allow(&no_rules, &env), "无规则应当允许：{os}/{arch}");
-            assert!(rules_allow(&allow_all, &env), "裸 allow 应当允许：{os}/{arch}");
+            assert!(
+                rules_allow(&allow_all, &env),
+                "裸 allow 应当允许：{os}/{arch}"
+            );
             assert_eq!(
                 rules_allow(&windows_only, &env),
                 os == "windows",
@@ -961,7 +959,10 @@ mod tests {
         let objc = &detail.libraries[1];
         assert_eq!(objc.rules.len(), 1);
         assert!(rules_allow(&objc.rules, &env_with("osx", "x86_64", &[])));
-        assert!(!rules_allow(&objc.rules, &env_with("windows", "x86_64", &[])));
+        assert!(!rules_allow(
+            &objc.rules,
+            &env_with("windows", "x86_64", &[])
+        ));
     }
 
     #[test]
@@ -982,7 +983,11 @@ mod tests {
         let lib = &detail.libraries[0];
         assert_eq!(lib.natives.as_ref().unwrap().len(), 3);
         assert_eq!(
-            lib.natives.as_ref().unwrap().get("windows").map(String::as_str),
+            lib.natives
+                .as_ref()
+                .unwrap()
+                .get("windows")
+                .map(String::as_str),
             Some("natives-windows")
         );
         assert_eq!(lib.downloads.classifiers.len(), 1);
@@ -1047,7 +1052,10 @@ mod tests {
         let merged = merge_detail(parent, child);
 
         assert_eq!(merged.id, "1.21.1-forge-51.0.33");
-        assert_eq!(merged.main_class, "cpw.mods.bootstraplauncher.BootstrapLauncher");
+        assert_eq!(
+            merged.main_class,
+            "cpw.mods.bootstraplauncher.BootstrapLauncher"
+        );
         // 子版本没写的字段保留父版本
         assert_eq!(merged.assets, "17");
         assert_eq!(merged.java_major, Some(21));
@@ -1056,7 +1064,10 @@ mod tests {
         // 库是追加：父的 2 个 + 子的 1 个
         assert_eq!(merged.libraries.len(), 3);
         assert_eq!(merged.libraries[0].name, "com.mojang:brigadier:1.3.10");
-        assert_eq!(merged.libraries[2].name, "net.minecraftforge:forge:1.21.1-51.0.33");
+        assert_eq!(
+            merged.libraries[2].name,
+            "net.minecraftforge:forge:1.21.1-51.0.33"
+        );
         // 参数是拼接：父的 3 个 game + 子的 2 个
         assert_eq!(merged.game_args.len(), 5);
         assert_eq!(merged.jvm_args.len(), 2);
@@ -1148,7 +1159,11 @@ mod tests {
         assert_eq!(parsed.libraries.len(), 2, "解析阶段不能丢条目");
 
         let merged = merge_detail(VersionDetail::default(), parsed);
-        assert_eq!(merged.libraries.len(), 2, "同名但 natives 形态不同的两条都要留");
+        assert_eq!(
+            merged.libraries.len(),
+            2,
+            "同名但 natives 形态不同的两条都要留"
+        );
         assert_eq!(
             merged
                 .libraries
@@ -1168,7 +1183,9 @@ mod tests {
         let client = HttpClient::new().unwrap();
         let manifest = fetch_manifest(&client, Source::Official).await.unwrap();
         let summary = manifest.find("1.21.1").expect("清单里应该有 1.21.1");
-        let detail = fetch_detail(&client, Source::Official, summary).await.unwrap();
+        let detail = fetch_detail(&client, Source::Official, summary)
+            .await
+            .unwrap();
 
         assert_eq!(detail.id, "1.21.1");
         assert_eq!(detail.kind, "release");
