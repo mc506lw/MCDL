@@ -78,8 +78,10 @@ pub enum Progress {
 
 - `Stage.index`：1 起的阶段序号，**真实值**，UI 可直接显示「第 3 步 / 共 5 步」。
 - `Stage.total`：本次安装计划执行的阶段总数，在第一个 `Stage` 事件之前就已确定。
-  唯一例外：版本 JSON 要求的 Java 比按版本号预估的高时，中途会补插一个 `Java` 阶段，
-  此时 `total` 加一。
+  唯一例外：`plan_stages` 只能按版本号字符串预估 Java 需求，而版本 JSON 的 `javaVersion`
+  才是准的（例如 26.3 要 Java 25，按字符串只推得出 21）。预估偏低时 `Java` 阶段会被
+  插到 `Meta` 之后，`total` 加一。因为插入点正好是当前所处位置，**后续序号整体后移一位，
+  序号始终单调递增**，UI 不会看到倒退。
 - `Stage.label`：给人看的一句话，UI 直接显示，不要自己拼。
 - `Files.done` / `Files.total`：**文件数**，含被跳过（已存在且校验通过）的文件。
 - `Files.bytes_done` / `Files.bytes_total`：**字节数**，只统计真正传输的字节。

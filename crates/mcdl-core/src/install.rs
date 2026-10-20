@@ -692,4 +692,14 @@ mod tests {
         let plan = Installer::plan_stages(&req, &[]);
         assert_eq!(plan.last(), Some(&StageKind::Loader));
     }
+
+    #[test]
+    fn plan_puts_java_right_after_meta() {
+        // 本机一个 Java 都没有时必须计划 Java 阶段，而且它只能排在 Meta 之后：
+        // 中途补插时 `resolve_java` 也插在这个位置，序号才不会倒退。
+        let req = InstallRequest::new(".", "1.21.1");
+        let plan = Installer::plan_stages(&req, &[]);
+        assert_eq!(plan.first(), Some(&StageKind::Meta));
+        assert_eq!(plan.get(1), Some(&StageKind::Java));
+    }
 }

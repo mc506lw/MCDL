@@ -1,0 +1,9 @@
+# clippy 基线配置。
+#
+# 这里只放「会影响 lint 判断」的全局设定，不在这里逐个 allow 掉 lint ——
+# 单个例外请在代码里用 `#[allow(clippy::xxx)]` 并写清楚为什么。
+#
+# msrv 与 Cargo.toml 的 `workspace.package.rust-version` 保持一致：
+# clippy 会据此避免建议只有更新版本才有的 API（例如 let-else、OnceLock、div_ceil）。
+# 升级 MSRV 时这里和 Cargo.toml 要一起改。
+msrv = "1.82"

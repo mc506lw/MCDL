@@ -1,0 +1,127 @@
+name: CI
+
+# 门禁：push 到 main、所有 PR 都跑。
+# 说明与本地复现方式见 docs/CI.md。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一个分支连续 push 时取消旧的那次，省 runner 时间。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # 只管引擎和 CLI。app/src-tauri 需要 Tauri 的 Linux 系统依赖，
+  # 那部分交给下面的 tauri job——不然每次改引擎都要等一套 GTK 装完。
+  rust:
+    name: rust（fmt / clippy / test）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 缓存 cargo 产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust
+
+      # 格式已经在 fee1736「style: 统一格式」里统一过，这里是硬门禁：
+      # 提交前先 `cargo fmt --all`，否则 CI 会红。
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy -D warnings
+        run: cargo clippy -p mcdl-core -p mcdl --all-targets -- -D warnings
+
+      # 9 个 #[ignore] 的联网用例默认不会跑，CI 不碰真实网络。
+      - name: cargo test
+        run: cargo test -p mcdl-core -p mcdl
+
+  web:
+    name: web（pnpm build）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm build
+        run: pnpm build
+
+  tauri:
+    name: tauri（cargo check，不打包）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Tauri 的 Linux 系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      # tauri.conf.json 的 frontendDist 指向 ../dist，dist 不入库，
+      # 所以 cargo check 之前必须先构建前端，否则 tauri 的宏会报找不到 dist。
+      - name: 构建前端
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 cargo 产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-tauri
+
+      - name: cargo check -p mcdl-app
+        run: cargo check -p mcdl-app

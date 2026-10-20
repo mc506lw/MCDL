@@ -135,11 +135,36 @@ mock（`lib/mock.ts`）用定时器按真实阶段顺序推进，事件结构（
 | 命令 | 干什么 |
 | --- | --- |
 | `list_versions` | `meta::fetch_manifest`，清单永远走官方源 |
+| `list_loaders` | `loader::available_loader_versions`；最多 20 条、从新到旧、5 分钟缓存，单次 ≤10 秒 |
 | `install` | 起一个任务跑 `Installer::run`，进度走 `Channel<InstallEvent>` |
 | `cancel` | abort 掉那个 future |
 | `detect_java` | `java::detect()` |
+| `list_runtimes` | 列 `<gameDir>/runtime/jre-<major>/bin/java.exe`，只读目录 |
 | `default_game_dir` | 系统默认的 `.minecraft` |
 | `open_game_dir` | 文件管理器打开目录（`tauri-plugin-opener`） |
+
+### 加载器版本下拉的降级
+
+`list_loaders` 会超时（单次 ≤10 秒）也可能失败，界面不能因此卡住：
+
+- 拉的时候显示骨架条；
+- 成功：下拉里是「最新版（默认）」+ 最多 20 个版本，从新到旧，不做无限滚动；
+- 失败或 10 秒超时：黄旗提示「无法获取版本列表，将使用最新版。」，
+  并把下拉换成文本框，用户想手填还是可以填，直接点开始就是用最新版。
+
+## 六、第三方镜像的标注（合规底线）
+
+镜像只是加速，默认关闭，而且必须写明是第三方的。界面上有两处：
+
+1. **BMCLAPI 下载源**：分段控件的标签直接写「BMCLAPI 第三方镜像」；选中时下面多一条
+   黄旗提示「BMCLAPI 是社区维护的第三方镜像，不是 Mojang 官方服务器。」，
+   分段下方的说明也改成「清单和版本 JSON 仍然走官方，只有依赖库、资源文件和游戏本体走镜像。」
+2. **Java 运行时的清华镜像回退**：本机没有合适运行时、官方 Adoptium 又失败时，
+   引擎会退到清华镜像取同一份 Temurin 构建。设置页「目录与运行时」下面常驻一条黄旗提示：
+   「Java 运行时：官方 Adoptium 下载失败时，会改用清华镜像（第三方）获取同一份 Temurin 构建。」；
+   安装页的「本机环境」看板里也有一句短版。
+
+两处都用 `.ef-notice` 的黄旗，不用红色（红色只给删除）。
 
 进度用 `tauri::ipc::Channel<InstallEvent>`，`InstallEvent` 是 `progress` / `done` / `failed` / `cancelled`
 四种。`Progress` 原样嵌套，不改字段——契约在 `types.rs`。
@@ -154,10 +179,13 @@ drop 掉 future 就是最干净的取消；已经落盘的文件留着，下次�
 | `crates/mcdl-core` 的 `meta` / `net` / `download` / `loader` / `java` | 已实现（并行开发中），`cargo check` 过 | 不用改界面 |
 | 设置持久化 | `localStorage`（`mcdl.settings`） | 换成写 `<config>/mcdl/settings.json`；`settings.ts` 的三个函数是唯一入口 |
 | 选择游戏目录 | 文本框 + 「默认目录」按钮 | 接 `tauri-plugin-dialog` 的目录选择框 |
-| 加载器版本列表 | 手填，留空 = 最新版 | 接 `loader::available_loader_versions` 做下拉 |
 | 安装历史 | 只在内存里，关掉就没了 | 落一份 `history.json`，或从 `versions/` 扫 |
 | 版本清单缓存 | 每次打开都拉 | 落盘 + `If-None-Match` |
 | CSP | `tauri.conf.json` 里是 `null` | 写死 `default-src 'self'`（dev 的 HMR websocket 需要单独放行） |
+
+已经接上的：`list_versions`、`list_loaders`、`install`、`cancel`、`detect_java`、
+`list_runtimes`、`default_game_dir`、`open_game_dir`。浏览器里这些全部有结构一致的 mock，
+所以 `pnpm dev` 不需要 Rust 也能把三张页面点一遍。
 
 ## 七、验收
 
