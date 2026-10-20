@@ -97,7 +97,7 @@ pub fn detect() -> Vec<JavaRuntime> {
 ///
 /// 注意方向：需求是 8、本机是 17 时仍然返回 17（版本高可以跑低版本）；
 /// 一个都不满足需求时返回 `None`，由调用方决定去下载对应版本。
-pub fn pick<'a>(runtimes: &'a [JavaRuntime], major: u32) -> Option<&'a JavaRuntime> {
+pub fn pick(runtimes: &[JavaRuntime], major: u32) -> Option<&JavaRuntime> {
     runtimes
         .iter()
         .filter(|j| j.major >= major)
@@ -356,7 +356,7 @@ fn parse_version(text: &str) -> Option<(u32, String)> {
     let rest = text.split_once("version \"")?.1;
     let end = rest.find('"')?;
     let raw = &rest[..end];
-    let mut parts = raw.split(|c| c == '.' || c == '_' || c == '-' || c == '+');
+    let mut parts = raw.split(['.', '_', '-', '+']);
     let first = parts.next()?;
     let major = if first == "1" {
         // 1.8.0_402 → 8
@@ -543,8 +543,8 @@ async fn download_to(
 /// 解压 zip，并剥掉压缩包里统一的顶层目录（Adoptium 的包是 `jdk-21.x-jre/...`）。
 fn extract_zip_stripping_top(zip_path: &Path, dest: &Path) -> Result<()> {
     let file = std::fs::File::open(zip_path).map_err(|e| Error::io(zip_path, e))?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| Error::other(format!("Java 压缩包损坏：{e}")))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| Error::other(format!("Java 压缩包损坏：{e}")))?;
 
     // 先确认所有条目共享同一个顶层目录，是才剥；否则原样解压，免得丢文件。
     let mut top: Option<String> = None;
@@ -767,7 +767,10 @@ mod tests {
         let out = Command::new(&exe).arg("-version").output().unwrap();
         let text = String::from_utf8_lossy(&out.stderr).into_owned()
             + &String::from_utf8_lossy(&out.stdout);
-        assert!(text.contains("version \"11"), "解压出来的不是 Java 11：{text}");
+        assert!(
+            text.contains("version \"11"),
+            "解压出来的不是 Java 11：{text}"
+        );
         eprintln!("Adoptium Java 11 就绪：{}", exe.display());
 
         // 第二次必须复用，不重新下载
@@ -778,7 +781,8 @@ mod tests {
     }
 
     #[test]
-    fn extract_strips_the_single_top_level_dir() {        use std::io::Write;
+    fn extract_strips_the_single_top_level_dir() {
+        use std::io::Write;
         let dir = std::env::temp_dir().join(format!("mcdl-zip-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -787,7 +791,8 @@ mod tests {
             let mut zip = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
             let opts = zip::write::SimpleFileOptions::default();
             zip.add_directory("jdk-21.0.12+1-jre/", opts).unwrap();
-            zip.start_file("jdk-21.0.12+1-jre/bin/java.exe", opts).unwrap();
+            zip.start_file("jdk-21.0.12+1-jre/bin/java.exe", opts)
+                .unwrap();
             zip.write_all(b"fake java").unwrap();
             zip.start_file("jdk-21.0.12+1-jre/release", opts).unwrap();
             zip.write_all(b"JAVA_VERSION=\"21\"").unwrap();
