@@ -6,8 +6,10 @@ import { api } from './api';
 export interface Settings {
   /** 并发下载数，引擎默认 16 */
   concurrency: number;
-  /** 默认游戏目录（.minecraft 所在目录） */
+  /** 当前选中的游戏目录（.minecraft 所在目录） */
   gameDir: string;
+  /** 用过/收藏的游戏目录，安装页可以从这里切 */
+  dirs: string[];
   /** 指定 Java；留空则自动探测 */
   javaPath: string;
   /** 只装能启动的最小集合 */
@@ -19,6 +21,7 @@ const KEY = 'mcdl.settings';
 export const DEFAULT_SETTINGS: Settings = {
   concurrency: 16,
   gameDir: '',
+  dirs: [],
   javaPath: '',
   skipAssets: false,
 };
@@ -31,6 +34,9 @@ export function loadSettings(): Settings {
     return {
       concurrency: clampConcurrency(parsed.concurrency),
       gameDir: typeof parsed.gameDir === 'string' ? parsed.gameDir : '',
+      dirs: Array.isArray(parsed.dirs)
+        ? parsed.dirs.filter((d): d is string => typeof d === 'string' && d.length > 0)
+        : [],
       javaPath: typeof parsed.javaPath === 'string' ? parsed.javaPath : '',
       skipAssets: Boolean(parsed.skipAssets),
     };
@@ -70,4 +76,19 @@ export async function resolveDefaultGameDir(): Promise<string> {
   } catch {
     return '';
   }
+}
+
+/** 把一个目录记进列表（去重，最多留 8 个），并设为当前目录。 */
+export function rememberDir(settings: Settings, dir: string): Settings {
+  const trimmed = dir.trim();
+  if (!trimmed) return settings;
+  const dirs = [trimmed, ...settings.dirs.filter((d) => d !== trimmed)].slice(0, 8);
+  return { ...settings, gameDir: trimmed, dirs };
+}
+
+/** 从列表里移除一个目录；移的正好是当前目录时，退回列表里的第一个。 */
+export function forgetDir(settings: Settings, dir: string): Settings {
+  const dirs = settings.dirs.filter((d) => d !== dir);
+  const gameDir = settings.gameDir === dir ? (dirs[0] ?? '') : settings.gameDir;
+  return { ...settings, dirs, gameDir };
 }

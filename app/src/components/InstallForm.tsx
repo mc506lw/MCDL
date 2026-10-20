@@ -1,13 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { api, IS_TAURI } from '../lib/api';
-import { formatDate } from '../lib/format';
+import { formatBytes, formatDate } from '../lib/format';
 import type { Settings } from '../lib/settings';
 import {
   LOADER_LABEL,
   type InstallRequest,
   type LoaderKind,
   type Source,
+  type InstallPreview,
   type VersionManifest,
 } from '../lib/types';
 
@@ -101,8 +102,53 @@ export function InstallForm({
     if (!gameDir && defaultDir) setGameDir(defaultDir);
   }, [defaultDir, gameDir]);
 
+  const [preview, setPreview] = useState<InstallPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
   const releases = versions?.versions.filter((v) => v.type === 'release') ?? [];
   const latest = versions?.latest.release ?? '';
+
+  // 版本/加载器/源/目录一变就重新估一次，让用户在点「开始安装」之前就知道代价。
+  useEffect(() => {
+    if (!version || !gameDir.trim()) {
+      setPreview(null);
+      return;
+    }
+    let alive = true;
+    setPreviewing(true);
+    const timer = window.setTimeout(() => {
+      api
+        .previewInstall({
+          game_dir: gameDir.trim(),
+          mc_version: version,
+          loader:
+            loader === 'none'
+              ? null
+              : {
+                  kind: loader,
+                  mc_version: version,
+                  loader_version: loaderVersion.trim() || null,
+                },
+          source,
+          concurrency: settings.concurrency,
+          java: settings.javaPath.trim() || null,
+          skip_assets: skipAssets,
+        })
+        .then((p) => {
+          if (alive) setPreview(p);
+        })
+        .catch(() => {
+          if (alive) setPreview(null);
+        })
+        .finally(() => {
+          if (alive) setPreviewing(false);
+        });
+    }, 600);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [version, loader, loaderVersion, source, gameDir, skipAssets, settings.concurrency, settings.javaPath]);
 
   /** 用系统原生对话框选目录。浏览器预览里没有这个能力，按钮会自己隐藏。 */
   async function pickDirectory() {
@@ -301,7 +347,13 @@ export function InstallForm({
             placeholder=".minecraft 所在目录"
             disabled={running}
             spellCheck={false}
+            list="mcdl-dir-options"
           />
+          <datalist id="mcdl-dir-options">
+            {settings.dirs.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
           {IS_TAURI && (
             <button
               className="ef-btn small"
@@ -323,6 +375,18 @@ export function InstallForm({
         </div>
         <small>版本、依赖库、资源文件都装在这里。</small>
       </div>
+
+      <p className="ef-field preview-line" aria-live="polite">
+        {previewing && '正在估算这次要下多少…'}
+        {!previewing && preview && (
+          <>
+            预计 {preview.files} 个文件 │ {formatBytes(preview.bytes)} │ 依赖库{' '}
+            {preview.libraries} 个 │ 资源 {preview.assets} 个 │ Java {preview.java_major}
+            {preview.java_path ? '（本机已有）' : '（需要下载）'}
+          </>
+        )}
+        {!previewing && !preview && '选好版本和目录后会显示预计下载量。'}
+      </p>
 
       <label className="ef-setting">
         <span>

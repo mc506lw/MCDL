@@ -431,6 +431,27 @@ pub struct InstallReport {
     pub installed_version: String,
 }
 
+/// 安装前的预估。只读元数据，不下载游戏文件。
+///
+/// 界面拿它回答「这一次要点多少、装到哪」，让用户在开始之前就知道代价。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct InstallPreview {
+    pub version_id: String,
+    pub kind: String,
+    /// 需要的主版本号
+    pub java_major: u32,
+    /// 本机能不能直接用：`Some(路径)` 表示有，`None` 表示要下载
+    pub java_path: Option<PathBuf>,
+    pub libraries: usize,
+    pub assets: usize,
+    pub files: usize,
+    pub bytes: u64,
+    /// 资源索引本身的大小（下载它才能数出 assets 数量）
+    pub index_bytes: u64,
+    pub loader: Option<String>,
+    pub stages: Vec<StageKind>,
+}
+
 // ---------------------------------------------------------------- 进度
 
 /// 引擎向外抛的进度事件。

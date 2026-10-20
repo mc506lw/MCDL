@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '../lib/api';
-import { DEFAULT_SETTINGS, clampConcurrency, type Settings } from '../lib/settings';
+import {
+  DEFAULT_SETTINGS,
+  clampConcurrency,
+  forgetDir,
+  rememberDir,
+  type Settings,
+} from '../lib/settings';
 import type { JavaRuntime } from '../lib/types';
 
 interface Props {
@@ -241,6 +247,45 @@ export function SettingsPage({
             <li key={path}>
               <span className="path" title={path}>
                 {path}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="ef-group-head">
+        <span>常用目录</span>
+        <small>Dirs</small>
+      </div>
+
+      {settings.dirs.length === 0 ? (
+        <p className="ef-empty">
+          还没有记录任何目录。安装一次之后，用过的目录会自动出现在这里，
+          安装页的目录输入框也能直接选。
+        </p>
+      ) : (
+        <ul className="ef-ledger">
+          {settings.dirs.map((dir) => (
+            <li key={dir}>
+              <span className="path" title={dir}>
+                {dir}
+              </span>
+              <span>
+                <button
+                  className="ef-btn small"
+                  type="button"
+                  onClick={() => onSave(rememberDir(settings, dir))}
+                  disabled={settings.gameDir === dir}
+                >
+                  {settings.gameDir === dir ? '当前' : '切到这个'}
+                </button>{' '}
+                <button
+                  className="ef-btn small danger"
+                  type="button"
+                  onClick={() => onSave(forgetDir(settings, dir))}
+                >
+                  移除
+                </button>
               </span>
             </li>
           ))}

@@ -13,8 +13,8 @@ use crate::meta;
 use crate::net::{self, HttpClient};
 use crate::paths::GamePaths;
 use crate::types::{
-    AssetIndex, DownloadJob, Env, InstallReport, InstallRequest, JavaRuntime, LogLevel, Progress,
-    ProgressSink, Source, StageKind, VersionDetail,
+    AssetIndex, DownloadJob, Env, InstallPreview, InstallReport, InstallRequest, JavaRuntime,
+    LogLevel, Progress, ProgressSink, Source, StageKind, VersionDetail,
 };
 
 /// 老版本的资源目录布局。1.8 之后都是 hash 分桶，不需要额外铺开。
@@ -40,6 +40,87 @@ impl Installer {
             client: HttpClient::new()?,
             env: Env::default(),
         })
+    }
+
+    /// 预估一次安装：会下多少文件、多少字节、用哪个 Java。
+    ///
+    /// 只读元数据，不下载游戏文件——唯一会真下的是资源索引（几百 KB），
+    /// 因为不读它就数不出 assets 的数量和体积。
+    pub async fn preview(&self, req: &InstallRequest) -> Result<InstallPreview> {
+        let paths = GamePaths::new(&req.game_dir);
+        let detected = java::detect();
+        let stages = Self::plan_stages(req, &detected);
+
+        let manifest = meta::fetch_manifest(&self.client, req.source).await?;
+        let summary = manifest
+            .find(&req.mc_version)
+            .cloned()
+            .ok_or_else(|| Error::VersionNotFound(req.mc_version.clone()))?;
+        let detail = meta::fetch_detail(&self.client, req.source, &summary).await?;
+
+        let java_major = detail
+            .java_major
+            .unwrap_or_else(|| java::required_major(&detail.id));
+        let java_path = req
+            .java
+            .clone()
+            .filter(|p| p.exists())
+            .or_else(|| java::pick(&detected, java_major).map(|rt| rt.path.clone()));
+
+        let (libs, _natives) = self.plan_libraries(&paths, &detail, req.source);
+        let lib_bytes: u64 = libs.iter().filter_map(|j| j.size).sum();
+
+        let client_bytes = detail.client.as_ref().and_then(|c| c.size).unwrap_or(0);
+        let mut files = libs.len() + usize::from(detail.client.is_some());
+        let mut bytes = lib_bytes + client_bytes;
+
+        let (assets, index_bytes) = if req.skip_assets {
+            ((0usize, 0u64), 0u64)
+        } else {
+            self.preview_assets(&paths, &detail).await?
+        };
+        files += assets.0;
+        bytes += assets.1 + index_bytes;
+
+        Ok(InstallPreview {
+            version_id: detail.id.clone(),
+            kind: detail.kind.clone(),
+            java_major,
+            java_path,
+            libraries: libs.len(),
+            assets: assets.0,
+            files,
+            bytes,
+            index_bytes,
+            loader: req.loader.as_ref().map(|l| l.display()),
+            stages,
+        })
+    }
+
+    /// 资源索引里的 (对象数, 总字节)。索引不在本地就顺手下一份——它只有几百 KB。
+    async fn preview_assets(
+        &self,
+        paths: &GamePaths,
+        detail: &VersionDetail,
+    ) -> Result<((usize, u64), u64)> {
+        let Some(index_ref) = &detail.asset_index else {
+            return Ok(((0, 0), 0));
+        };
+
+        let index_dest = paths.asset_indexes().join(format!("{}.json", index_ref.id));
+        let job = DownloadJob {
+            url: index_ref.url.clone(),
+            dest: index_dest.clone(),
+            sha1: index_ref.sha1.clone(),
+            size: index_ref.size,
+            label: format!("indexes/{}.json", index_ref.id),
+        };
+        let index_bytes = self.download_counted(&job).await?;
+
+        let raw = std::fs::read(&index_dest).map_err(|e| Error::io(&index_dest, e))?;
+        let index: AssetIndex = serde_json::from_slice(&raw)?;
+        let bytes: u64 = index.objects.values().map(|o| o.size).sum();
+        Ok(((index.objects.len(), bytes), index_bytes))
     }
 
     /// 跑一次完整安装。

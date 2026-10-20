@@ -118,3 +118,18 @@ export interface InstalledVersion {
   /** 目录最后修改时间（Unix 秒） */
   modified: number;
 }
+
+/** 安装前预估，对应引擎 `InstallPreview`。只读元数据，不下载游戏文件。 */
+export interface InstallPreview {
+  version_id: string;
+  kind: string;
+  java_major: number;
+  java_path: string | null;
+  libraries: number;
+  assets: number;
+  files: number;
+  bytes: number;
+  index_bytes: number;
+  loader: string | null;
+  stages: string[];
+}

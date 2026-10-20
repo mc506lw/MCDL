@@ -673,3 +673,12 @@ body.ef {
   color: var(--ef-ink-2);
   font-size: var(--ef-t-field);
 }
+
+.preview-line {
+  margin: 0;
+  padding-top: 4px;
+  color: var(--ef-ink-2);
+  font-size: var(--ef-t-field);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+}

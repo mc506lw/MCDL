@@ -7,6 +7,7 @@ import type {
   InstallEvent,
   InstallReport,
   InstallRequest,
+  InstallPreview,
   InstalledVersion,
   JavaRuntime,
   LoaderKind,
@@ -19,6 +20,7 @@ import {
   installMock,
   listLoadersMock,
   listInstalledMock,
+  previewInstallMock,
   listRuntimesMock,
   listVersionsMock,
   openGameDirMock,
@@ -81,6 +83,13 @@ export const api = {
     if (!IS_TAURI) return listLoadersMock(kind);
     const { invoke } = await core();
     return invoke<string[]>('list_loaders', { kind, mcVersion });
+  },
+
+  /** 安装前预估：会下多少文件、多少字节。不下载游戏文件。 */
+  async previewInstall(req: InstallRequest): Promise<InstallPreview> {
+    if (!IS_TAURI) return previewInstallMock(req);
+    const { invoke } = await core();
+    return invoke<InstallPreview>('preview_install', { req });
   },
 
   /** 游戏目录下已经装好的版本，按最近改动排序。 */

@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   clearSettings,
   loadSettings,
+  rememberDir,
   saveSettings,
   type Settings,
 } from './lib/settings';
@@ -82,6 +83,12 @@ export default function App() {
     async (req: InstallRequest) => {
       setSelectedId(null);
       setSection('install');
+      // 装过的目录自动进「常用目录」列表，下次一点就切过去
+      setSettings((prev) => {
+        const next = rememberDir(prev, req.game_dir);
+        saveSettings(next);
+        return next;
+      });
       await install.start(req);
     },
     [install],

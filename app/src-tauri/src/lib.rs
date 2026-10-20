@@ -178,6 +178,13 @@ fn open_game_dir(app: tauri::AppHandle, path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 预估一次安装：会下多少文件、多少字节、用哪个 Java。不下载游戏文件。
+#[tauri::command]
+async fn preview_install(req: InstallRequest) -> Result<mcdl_core::InstallPreview, String> {
+    let installer = mcdl_core::Installer::new().map_err(|e| e.to_string())?;
+    installer.preview(&req).await.map_err(|e| e.to_string())
+}
+
 /// 列出某个游戏目录里已经装好的版本（按最近改动排序）。
 #[tauri::command]
 fn list_installed(game_dir: String) -> Result<Vec<InstalledVersion>, String> {
@@ -207,6 +214,7 @@ pub fn run() {
             open_game_dir,
             list_installed,
             remove_version,
+            preview_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

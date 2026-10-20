@@ -11,6 +11,7 @@ import type {
   InstallEvent,
   InstallReport,
   InstallRequest,
+  InstallPreview,
   InstalledVersion,
   JavaRuntime,
   Progress,
@@ -366,5 +367,28 @@ export function removeVersionMock(id: string): Promise<void> {
         resolve();
       }
     }, 220),
+  );
+}
+
+export function previewInstallMock(req: InstallRequest): Promise<InstallPreview> {
+  const withAssets = !req.skip_assets;
+  return new Promise((resolve) =>
+    window.setTimeout(
+      () =>
+        resolve({
+          version_id: req.mc_version,
+          kind: 'release',
+          java_major: 21,
+          java_path: 'C:/Java/jdk-21/bin/java.exe',
+          libraries: 74,
+          assets: withAssets ? 3148 : 0,
+          files: 74 + (withAssets ? 3148 : 0) + 1,
+          bytes: withAssets ? 733_184_000 : 93_600_000,
+          index_bytes: 597_035,
+          loader: req.loader ? req.loader.kind : null,
+          stages: ['meta', 'libraries', 'assets', 'client'],
+        }),
+      320,
+    ),
   );
 }
