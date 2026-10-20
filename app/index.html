@@ -1,13 +1,42 @@
 <!doctype html>
-<html lang="en">
+<!--
+  MCDL — Minecraft 安装器
+
+  变体：冷库（ice / cool / tight / grid / standard / full）
+  主视觉：安装队列的实时读数（版本号、加载器、体积、阶段、进度）
+  页面类型：控制台（安装）+ 阅读（日志、设置）
+  强调色、纸色、切角、底纹、密度、动效只在这一处设置。
+-->
+<html
+  lang="zh-CN"
+  data-ef-accent="ice"
+  data-ef-paper="cool"
+  data-ef-cut="tight"
+  data-ef-ground="grid"
+  data-ef-density="standard"
+  data-ef-motion="full"
+>
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>MCDL — Minecraft 安装器</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23161616'/%3E%3Cpath d='M7 25V7h4.4l4.6 7.2L20.6 7H25v18h-4.2V14.6L16 22.4l-4.8-7.8V25z' fill='%237DE6FF'/%3E%3C/svg%3E"
+    />
+    <meta name="theme-color" content="#F0F3F5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171A1C" media="(prefers-color-scheme: dark)" />
+    <link rel="preload" href="/fonts/Saira.ttf" as="font" type="font/ttf" crossorigin />
+    <!-- 先把主题定下来，避免白闪一下 -->
+    <script>
+      try {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+      } catch {}
+    </script>
   </head>
 
-  <body>
+  <body class="ef ef-contours">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

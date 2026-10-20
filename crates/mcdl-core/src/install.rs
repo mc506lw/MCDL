@@ -2,7 +2,7 @@
 //!
 //! 这是引擎唯一的入口。CLI 和 Tauri 命令层都只调 [`Installer::run`]。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::download;
@@ -13,9 +13,20 @@ use crate::meta;
 use crate::net::{self, HttpClient};
 use crate::paths::GamePaths;
 use crate::types::{
-    DownloadJob, Env, InstallReport, InstallRequest, LogLevel, Progress, ProgressSink, Stage,
-    StageKind, VersionDetail,
+    AssetIndex, DownloadJob, Env, InstallReport, InstallRequest, JavaRuntime, LogLevel, Progress,
+    ProgressSink, Source, StageKind, VersionDetail,
 };
+
+/// 老版本的资源目录布局。1.8 之后都是 hash 分桶，不需要额外铺开。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AssetLayout {
+    /// 现代版本：只有 `assets/objects`
+    Plain,
+    /// 1.7.x：`assets/virtual/<索引名>/<资源名>`
+    Virtual,
+    /// 1.6 及更早：`<gameDir>/resources/<资源名>`
+    Resources,
+}
 
 /// 安装器。内部持有一个复用的 HTTP 客户端。
 pub struct Installer {
@@ -32,6 +43,10 @@ impl Installer {
     }
 
     /// 跑一次完整安装。
+    ///
+    /// 阶段序列在第一个 [`Progress::Stage`] 事件之前就确定，UI 可以直接显示
+    /// 「第几步 / 共几步」。唯一的例外是：版本 JSON 要求的 Java 比按版本号
+    /// 预估的更高时，会在中途补插一个 `Java` 阶段，此时 `total` 加一。
     pub async fn run(
         &self,
         req: &InstallRequest,
@@ -41,8 +56,12 @@ impl Installer {
         let paths = GamePaths::new(&req.game_dir);
         paths.prepare()?;
 
+        // 探测一次，规划阶段和解析 Java 都复用这份结果（D7：原来跑两遍，多花 1s 且日志重复）
+        let detected = java::detect();
+        let plan = Self::plan_stages(req, &detected);
+
         // 1. 元数据
-        self.stage(sink, StageKind::Meta, 1, 4, "读取版本清单");
+        self.begin(sink, &plan, StageKind::Meta, "读取版本清单");
         let manifest = meta::fetch_manifest(&self.client, req.source).await?;
         let summary = manifest
             .find(&req.mc_version)
@@ -58,31 +77,21 @@ impl Installer {
         let java_major = detail
             .java_major
             .unwrap_or_else(|| java::required_major(&detail.id));
-        let java_path = self.resolve_java(req, java_major, sink).await?;
+        let java_path = self
+            .resolve_java(req, java_major, sink, &plan, &detected)
+            .await?;
 
         // 3. 文件清单
         let (lib_jobs, native_jobs) = self.plan_libraries(&paths, &detail, req.source);
         let client_job = self.plan_client(&paths, &detail, req.source)?;
-        let (asset_jobs, asset_index_job) = if req.skip_assets {
-            (Vec::new(), None)
+        let (asset_jobs, asset_index_job, index_bytes, asset_layout) = if req.skip_assets {
+            (Vec::new(), None, 0, AssetLayout::Plain)
         } else {
             self.plan_assets(&paths, &detail, req.source).await?
         };
 
-        let total_files = lib_jobs.len()
-            + native_jobs.len()
-            + client_job.iter().count()
-            + asset_jobs.len()
-            + asset_index_job.iter().count();
-
         // 4. 依赖库
-        self.stage(
-            sink,
-            StageKind::Libraries,
-            lib_jobs.len(),
-            total_files,
-            "下载依赖库",
-        );
+        self.begin(sink, &plan, StageKind::Libraries, "下载依赖库");
         let mut outcome = download::run_batch(
             &self.client,
             lib_jobs,
@@ -93,17 +102,14 @@ impl Installer {
         .await?;
 
         // 5. 资源索引与资源文件
-        if let Some(job) = asset_index_job {
-            download::download_one(&self.client, &job).await?;
+        // 索引在 plan_assets 里就已经下好了，这里只记账（D4a：以前这笔字节从来没进过 report）。
+        outcome.bytes += index_bytes;
+        if index_bytes > 0 {
+            outcome.downloaded += 1;
         }
+        let _ = asset_index_job;
         if !asset_jobs.is_empty() {
-            self.stage(
-                sink,
-                StageKind::Assets,
-                asset_jobs.len(),
-                total_files,
-                "下载资源文件",
-            );
+            self.begin(sink, &plan, StageKind::Assets, "下载资源文件");
             let assets = download::run_batch(
                 &self.client,
                 asset_jobs,
@@ -117,22 +123,39 @@ impl Installer {
             outcome.bytes += assets.bytes;
         }
 
+        // 5b. 老版本的虚拟资产布局（1.6 及更早 / 1.7.x）
+        if asset_layout != AssetLayout::Plain {
+            self.materialize_assets(&paths, &detail, asset_layout)?;
+        }
+
         // 6. 游戏本体
         if let Some(job) = client_job {
-            self.stage(sink, StageKind::Client, 1, total_files, "下载游戏本体");
-            download::download_one(&self.client, &job).await?;
+            self.begin(sink, &plan, StageKind::Client, "下载游戏本体");
+            let added = self.download_counted(&job).await?;
+            outcome.bytes += added;
+            if added > 0 {
+                outcome.downloaded += 1;
+            }
         }
 
         // 7. natives（1.19 以前的老版本需要解压到版本目录）
         for job in &native_jobs {
-            download::download_one(&self.client, job).await?;
+            let added = self.download_counted(job).await?;
+            outcome.bytes += added;
+            if added > 0 {
+                outcome.downloaded += 1;
+            }
         }
         self.extract_natives(&paths, &detail)?;
 
         // 8. 加载器
         let mut installed_version = detail.id.clone();
         if let Some(spec) = &req.loader {
-            self.stage(sink, StageKind::Loader, 1, total_files, "安装模组加载器");
+            self.begin(sink, &plan, StageKind::Loader, "安装模组加载器");
+            // 官方 installer 自己会往 libraries/ 和 versions/ 里下载库（Forge 约 96 MB），
+            // 这部分不经过我们的下载层，只能靠目录快照差分记账（D8）。
+            let watched: [&Path; 2] = [&paths.libraries(), &paths.versions()];
+            let before = tree_stats(&watched);
             let ctx = LoaderCtx {
                 client: &self.client,
                 paths: &paths,
@@ -140,6 +163,9 @@ impl Installer {
                 source: req.source,
             };
             let result = loader::install(&ctx, spec, sink).await?;
+            let after = tree_stats(&watched);
+            outcome.downloaded += after.1.saturating_sub(before.1) as usize;
+            outcome.bytes += after.0.saturating_sub(before.0);
             if !result.version_id.is_empty() {
                 installed_version = result.version_id;
             }
@@ -169,12 +195,60 @@ impl Installer {
         Ok(report)
     }
 
+    // ------------------------------------------------------------ 阶段
+
+    /// 计划本次安装要跑哪些阶段。在发出第一个阶段事件之前调用。
+    fn plan_stages(req: &InstallRequest, detected: &[JavaRuntime]) -> Vec<StageKind> {
+        let mut plan = vec![StageKind::Meta];
+        if Self::needs_java_download(req, detected) {
+            plan.push(StageKind::Java);
+        }
+        plan.push(StageKind::Libraries);
+        if !req.skip_assets {
+            plan.push(StageKind::Assets);
+        }
+        plan.push(StageKind::Client);
+        if req.loader.is_some() {
+            plan.push(StageKind::Loader);
+        }
+        plan
+    }
+
+    /// 本机有没有能用的 Java：没有才需要下载，才需要 `Java` 阶段。
+    ///
+    /// 这里只能按版本号推断，因为还没拿到版本 JSON；真正的判断在
+    /// [`Self::resolve_java`] 里，推断偏低时会补插阶段。
+    fn needs_java_download(req: &InstallRequest, detected: &[JavaRuntime]) -> bool {
+        if req.java.is_some() {
+            return false;
+        }
+        let major = java::required_major(&req.mc_version);
+        java::pick(detected, major).is_none()
+    }
+
+    /// 发出阶段开始事件。`index` 是 1 起的真实序号，`total` 是计划总数。
+    fn begin(&self, sink: &dyn ProgressSink, plan: &[StageKind], kind: StageKind, label: &str) {
+        let planned = plan.iter().position(|k| *k == kind).map(|i| i + 1);
+        let index = planned.unwrap_or(plan.len() + 1);
+        let total = plan.len().max(index);
+        sink.emit(Progress::Stage {
+            kind,
+            index,
+            total,
+            label: label.to_string(),
+        });
+    }
+
+    // ------------------------------------------------------------ Java
+
     /// 解析要用的 Java：显式指定 > 本机探测 > 自动下载。
     async fn resolve_java(
         &self,
         req: &InstallRequest,
         major: u32,
         sink: &dyn ProgressSink,
+        plan: &[StageKind],
+        detected: &[JavaRuntime],
     ) -> Result<PathBuf> {
         if let Some(path) = &req.java {
             if path.exists() {
@@ -186,8 +260,7 @@ impl Installer {
             )));
         }
 
-        let found = java::detect();
-        if let Some(rt) = java::pick(&found, major) {
+        if let Some(rt) = java::pick(detected, major) {
             sink.emit(Progress::Log {
                 level: LogLevel::Info,
                 message: format!("使用本机 Java {}（{}）", rt.major, rt.vendor),
@@ -195,9 +268,40 @@ impl Installer {
             return Ok(rt.path.clone());
         }
 
-        self.stage(sink, StageKind::Java, 1, 1, "获取 Java 运行时");
+        // 计划里没有 Java 阶段说明预估偏低，这里补一个。
+        self.begin(sink, plan, StageKind::Java, "获取 Java 运行时");
         let dir = GamePaths::new(&req.game_dir).root().join("runtime");
         java::ensure(&self.client, major, &dir, sink).await
+    }
+
+    // ------------------------------------------------------------ 文件清单
+
+    /// 下载单个文件，返回这次真正落盘的字节数，用来补全 [`InstallReport::bytes`]。
+    ///
+    /// `download_one` 只返回 `()`，所以这里用下载前后的文件大小差来算：
+    /// 已存在且校验通过的文件差值为 0，重下的文件按新大小计。
+    async fn download_counted(&self, job: &DownloadJob) -> Result<u64> {
+        let before = std::fs::metadata(&job.dest)
+            .ok()
+            .map(|m| (m.len(), m.modified().ok()));
+        download::download_one(&self.client, job).await?;
+        let after = std::fs::metadata(&job.dest)
+            .ok()
+            .map(|m| (m.len(), m.modified().ok()));
+
+        match (before, after) {
+            // 原本不存在：这次写进去的全算
+            (None, Some((len, _))) => Ok(len),
+            // 存在但被改写（同尺寸修复也会更新 mtime）：按新大小算，别报 0
+            (Some((len, t0)), Some((new_len, t1))) => {
+                if t0 != t1 {
+                    Ok(new_len.max(len))
+                } else {
+                    Ok(0)
+                }
+            }
+            _ => Ok(0),
+        }
     }
 
     /// 组装依赖库与 natives 的下载任务。
@@ -205,7 +309,7 @@ impl Installer {
         &self,
         paths: &GamePaths,
         detail: &VersionDetail,
-        source: crate::types::Source,
+        source: Source,
     ) -> (Vec<DownloadJob>, Vec<DownloadJob>) {
         let mut libs = Vec::new();
         let mut natives = Vec::new();
@@ -221,10 +325,12 @@ impl Installer {
                     .clone()
                     .unwrap_or_else(|| maven_to_path(&lib.name));
                 let dest = paths.libraries().join(&path);
-                let url = if artifact.url.is_empty() {
-                    net::library_url(source, &path)
-                } else {
-                    artifact.url.clone()
+                // 选了镜像就一律走镜像：原版 JSON 里每个 artifact 都自带官方 url，
+                // 只在官方源时才用它。
+                let url = match source {
+                    Source::Bmclapi => net::library_url(source, &path),
+                    Source::Official if artifact.url.is_empty() => net::library_url(source, &path),
+                    Source::Official => artifact.url.clone(),
                 };
                 libs.push(DownloadJob {
                     url,
@@ -264,10 +370,10 @@ impl Installer {
         &self,
         paths: &GamePaths,
         detail: &VersionDetail,
-        _source: crate::types::Source,
+        source: Source,
     ) -> Result<Option<DownloadJob>> {
         Ok(detail.client.as_ref().map(|c| DownloadJob {
-            url: c.url.clone(),
+            url: net::client_url(source, &detail.id, &c.url),
             dest: paths.version_jar(&detail.id),
             sha1: c.sha1.clone(),
             size: c.size,
@@ -279,10 +385,10 @@ impl Installer {
         &self,
         paths: &GamePaths,
         detail: &VersionDetail,
-        source: crate::types::Source,
-    ) -> Result<(Vec<DownloadJob>, Option<DownloadJob>)> {
+        source: Source,
+    ) -> Result<(Vec<DownloadJob>, Option<DownloadJob>, u64, AssetLayout)> {
         let Some(index_ref) = &detail.asset_index else {
-            return Ok((Vec::new(), None));
+            return Ok((Vec::new(), None, 0, AssetLayout::Plain));
         };
 
         let index_dest = paths
@@ -296,12 +402,11 @@ impl Installer {
             label: format!("indexes/{}.json", index_ref.id),
         };
 
-        if !index_dest.exists() {
-            download::download_one(&self.client, &index_job).await?;
-        }
+        // 索引本身就是一次真实下载，字节必须记账（D4a：以前这笔从来没进过 report）
+        let index_bytes = self.download_counted(&index_job).await?;
 
         let raw = std::fs::read(&index_dest).map_err(|e| Error::io(&index_dest, e))?;
-        let index: crate::types::AssetIndex = serde_json::from_slice(&raw)?;
+        let index: AssetIndex = serde_json::from_slice(&raw)?;
 
         let mut jobs = Vec::with_capacity(index.objects.len());
         for (name, obj) in &index.objects {
@@ -313,7 +418,69 @@ impl Installer {
                 label: name.clone(),
             });
         }
-        Ok((jobs, Some(index_job)))
+
+        let layout = if index.map_to_resources {
+            AssetLayout::Resources
+        } else if index.virtual_ {
+            AssetLayout::Virtual
+        } else {
+            AssetLayout::Plain
+        };
+
+        Ok((jobs, Some(index_job), index_bytes, layout))
+    }
+
+    /// 老版本按「资源名」读文件，不认 hash 分桶布局，所以要把 objects 再铺开一份。
+    ///
+    /// - 1.6 及更早（`map_to_resources`）：铺到 `<gameDir>/resources/<资源名>`
+    /// - 1.7.x（`virtual`）：铺到 `assets/virtual/<索引名>/<资源名>`
+    fn materialize_assets(
+        &self,
+        paths: &GamePaths,
+        detail: &VersionDetail,
+        layout: AssetLayout,
+    ) -> Result<()> {
+        let Some(index_ref) = &detail.asset_index else {
+            return Ok(());
+        };
+        let index_path = paths
+            .asset_indexes()
+            .join(format!("{}.json", index_ref.id));
+        let raw = std::fs::read(&index_path).map_err(|e| Error::io(&index_path, e))?;
+        let index: AssetIndex = serde_json::from_slice(&raw)?;
+
+        let target = match layout {
+            AssetLayout::Resources => paths.root().join("resources"),
+            AssetLayout::Virtual => paths.assets().join("virtual").join(&index_ref.id),
+            AssetLayout::Plain => return Ok(()),
+        };
+        std::fs::create_dir_all(&target).map_err(|e| Error::io(&target, e))?;
+
+        let mut copied = 0usize;
+        for (name, obj) in &index.objects {
+            let src = paths.asset_object(&obj.hash);
+            let dst = target.join(name);
+            if dst.exists() {
+                continue;
+            }
+            if let Some(parent) = dst.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;
+            }
+            match std::fs::copy(&src, &dst) {
+                Ok(_) => copied += 1,
+                Err(e) => tracing::warn!(
+                    path = %src.display(),
+                    error = %e,
+                    "虚拟资产复制失败，跳过这一个"
+                ),
+            }
+        }
+        tracing::info!(
+            copied,
+            target = %target.display(),
+            "已铺开老版本的虚拟资产"
+        );
+        Ok(())
     }
 
     fn extract_natives(&self, paths: &GamePaths, detail: &VersionDetail) -> Result<()> {
@@ -347,44 +514,87 @@ impl Installer {
 
     /// 把合并后的版本 JSON 写回 `versions/<id>/<id>.json`，
     /// 这样官方启动器、PCL 之类也能直接认这个实例。
+    ///
+    /// 必须是**可启动**的完整 JSON：`arguments` / `minecraftArguments` / `logging`
+    /// 一个都不能少，否则别的启动器拿过去只会看到一堆库却不知道主类怎么调（D2）。
     fn write_version_json(&self, paths: &GamePaths, detail: &VersionDetail) -> Result<()> {
         let dir = paths.version_dir(&detail.id);
         std::fs::create_dir_all(&dir).map_err(|e| Error::io(&dir, e))?;
         let dest = paths.version_json(&detail.id);
-        let raw = serde_json::json!({
-            "id": detail.id,
-            "type": detail.kind,
-            "mainClass": detail.main_class,
-            "assets": detail.assets,
-            "assetIndex": detail.asset_index.as_ref().map(|a| serde_json::json!({
-                "id": a.id, "url": a.url, "sha1": a.sha1, "size": a.size
-            })),
-            "downloads": { "client": detail.client.as_ref().map(|c| serde_json::json!({
-                "url": c.url, "sha1": c.sha1, "size": c.size
-            })) },
-            "libraries": detail.libraries.iter().map(|l| serde_json::json!({
-                "name": l.name,
-                "downloads": l.downloads,
-                "natives": l.natives,
-                "rules": l.rules,
-                "extract": l.extract,
-            })).collect::<Vec<_>>(),
-            "javaVersion": detail.java_major.map(|m| serde_json::json!({ "majorVersion": m })),
-        });
-        std::fs::write(&dest, serde_json::to_vec_pretty(&raw)?)
+
+        let mut root = serde_json::Map::new();
+        root.insert("id".into(), detail.id.clone().into());
+        root.insert("type".into(), detail.kind.clone().into());
+        root.insert("mainClass".into(), detail.main_class.clone().into());
+        root.insert("assets".into(), detail.assets.clone().into());
+
+        if let Some(a) = &detail.asset_index {
+            root.insert(
+                "assetIndex".into(),
+                serde_json::json!({
+                    "id": a.id,
+                    "url": a.url,
+                    "sha1": a.sha1,
+                    "size": a.size,
+                    "totalSize": a.total_size,
+                }),
+            );
+        }
+
+        if let Some(c) = &detail.client {
+            root.insert(
+                "downloads".into(),
+                serde_json::json!({ "client": {
+                    "url": c.url,
+                    "sha1": c.sha1,
+                    "size": c.size,
+                }}),
+            );
+        }
+
+        // 1.13+ 用 arguments 对象；更早是整串 minecraftArguments，两者不能混写。
+        if !detail.game_args.is_empty() || !detail.jvm_args.is_empty() {
+            root.insert(
+                "arguments".into(),
+                serde_json::json!({
+                    "game": detail.game_args,
+                    "jvm": detail.jvm_args,
+                }),
+            );
+        }
+        if let Some(legacy) = &detail.legacy_args {
+            root.insert("minecraftArguments".into(), legacy.clone().into());
+        }
+
+        if let Some(logging) = &detail.logging {
+            root.insert(
+                "logging".into(),
+                serde_json::json!({ "client": {
+                    "argument": logging.argument,
+                    "file": {
+                        "id": logging.file.path,
+                        "url": logging.file.url,
+                        "sha1": logging.file.sha1,
+                        "size": logging.file.size,
+                    },
+                }}),
+            );
+        }
+
+        root.insert(
+            "libraries".into(),
+            serde_json::to_value(&detail.libraries)?,
+        );
+        if let Some(major) = detail.java_major {
+            root.insert(
+                "javaVersion".into(),
+                serde_json::json!({ "majorVersion": major }),
+            );
+        }
+
+        std::fs::write(&dest, serde_json::to_vec_pretty(&root)?)
             .map_err(|e| Error::io(&dest, e))?;
         Ok(())
-    }
-
-    fn stage(&self, sink: &dyn ProgressSink, kind: StageKind, files: usize, total: usize, label: &str) {
-        sink.emit(Progress::Stage {
-            kind,
-            index: 0,
-            total,
-            label: label.to_string(),
-        });
-        let _ = files;
-        let _: Option<Stage> = None;
     }
 }
 
@@ -409,9 +619,36 @@ fn arch_bits(arch: &str) -> &'static str {
     }
 }
 
+/// 递归统计若干目录的 (字节数, 文件数)。目录不存在时按 0 计。
+///
+/// 只用来给加载器阶段做前后差分，不需要精确到符号链接之类的边角。
+fn tree_stats(dirs: &[&Path]) -> (u64, u64) {
+    let mut bytes = 0u64;
+    let mut files = 0u64;
+    let mut stack: Vec<PathBuf> = dirs.iter().map(|d| d.to_path_buf()).collect();
+
+    while let Some(current) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(meta) = entry.metadata() else { continue };
+            if meta.is_dir() {
+                stack.push(entry.path());
+            } else if meta.is_file() {
+                bytes += meta.len();
+                files += 1;
+            }
+        }
+    }
+
+    (bytes, files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::LoaderSpec;
 
     #[test]
     fn maven_coordinates_become_library_path() {
@@ -430,5 +667,28 @@ mod tests {
         assert_eq!(arch_bits("x86_64"), "64");
         assert_eq!(arch_bits("aarch64"), "64");
         assert_eq!(arch_bits("x86"), "32");
+    }
+
+    #[test]
+    fn plan_skips_optional_stages() {
+        let req = InstallRequest {
+            java: Some(PathBuf::from("java")),
+            skip_assets: true,
+            ..InstallRequest::new(".", "1.21.1")
+        };
+        let plan = Installer::plan_stages(&req, &[]);
+        assert!(!plan.contains(&StageKind::Assets));
+        assert!(!plan.contains(&StageKind::Loader));
+        assert!(plan.contains(&StageKind::Meta));
+        assert!(plan.contains(&StageKind::Client));
+    }
+
+    #[test]
+    fn plan_includes_loader_when_requested() {
+        let mut req = InstallRequest::new(".", "1.21.1");
+        req.java = Some(PathBuf::from("java"));
+        req.loader = Some(LoaderSpec::new(crate::types::LoaderKind::Fabric, "1.21.1"));
+        let plan = Installer::plan_stages(&req, &[]);
+        assert_eq!(plan.last(), Some(&StageKind::Loader));
     }
 }

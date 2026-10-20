@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# 无头浏览器截图与探针（本地验收用，不进仓库）
+.shots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

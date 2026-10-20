@@ -1,51 +1,173 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useCallback, useEffect, useState } from 'react';
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+import { CommandBar } from './components/CommandBar';
+import { api, IS_TAURI } from './lib/api';
+import { toast, wireReadouts, wireTheme } from './lib/fx';
+import type { Section } from './lib/nav';
+import {
+  DEFAULT_SETTINGS,
+  clearSettings,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from './lib/settings';
+import type { InstallRequest, JavaRuntime, VersionManifest } from './lib/types';
+import { useInstall } from './lib/useInstall';
+import { InstallPage } from './pages/InstallPage';
+import { LogsPage } from './pages/LogsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+export default function App() {
+  const [section, setSection] = useState<Section>('install');
+  const install = useInstall();
+
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [osDefaultDir, setOsDefaultDir] = useState('');
+  const [versions, setVersions] = useState<VersionManifest | null>(null);
+  const [loadingVersions, setLoadingVersions] = useState(true);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  const [java, setJava] = useState<JavaRuntime[] | null>(null);
+  const [javaLoading, setJavaLoading] = useState(true);
+  const [javaError, setJavaError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const defaultDir = settings.gameDir || osDefaultDir;
+
+  // ------------------------------------------------------------ 取数据
+
+  const loadVersions = useCallback(async () => {
+    setLoadingVersions(true);
+    setVersionsError(null);
+    try {
+      setVersions(await api.listVersions());
+    } catch (error) {
+      setVersionsError(String(error));
+    } finally {
+      setLoadingVersions(false);
+    }
+  }, []);
+
+  const loadJava = useCallback(async () => {
+    setJavaLoading(true);
+    setJavaError(null);
+    try {
+      setJava(await api.detectJava());
+    } catch (error) {
+      setJavaError(String(error));
+    } finally {
+      setJavaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // wireTheme 自己在元素上做了幂等（见 lib/fx.js 的本地改动）
+    wireTheme();
+    void loadVersions();
+    void loadJava();
+    api
+      .defaultGameDir()
+      .then(setOsDefaultDir)
+      .catch(() => setOsDefaultDir(''));
+  }, [loadVersions, loadJava]);
+
+  // 换页时让新出现的读数落定一次（[data-fx-load]）
+  useEffect(() => {
+    wireReadouts(document);
+  }, [section]);
+
+  // ------------------------------------------------------------ 动作
+
+  const startInstall = useCallback(
+    async (req: InstallRequest) => {
+      setSelectedId(null);
+      setSection('install');
+      await install.start(req);
+    },
+    [install],
+  );
+
+  const openDir = useCallback(async (path: string) => {
+    if (!path) return;
+    try {
+      await api.openGameDir(path);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  const saveAll = useCallback((next: Settings) => {
+    setSettings(next);
+    saveSettings(next);
+    toast('已保存。');
+  }, []);
+
+  const resetAll = useCallback(() => {
+    clearSettings();
+    setSettings(DEFAULT_SETTINGS);
+    toast('本机设置已清除。');
+  }, []);
+
+  // 队列里选中的那一轮；没选就跟着正在跑的那一轮
+  const task =
+    install.tasks.find((t) => t.id === selectedId) ?? install.running ?? install.tasks[0] ?? null;
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <>
+      <div className="ef-tri ef-in-sweep" aria-hidden="true">
+        <i />
+        <i />
+        <i />
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+      <CommandBar section={section} onSection={setSection} demo={!IS_TAURI} />
+
+      <main className="app-main">
+        {section === 'install' && (
+          <InstallPage
+            task={task}
+            tasks={install.tasks}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onStart={startInstall}
+            onCancel={() => void install.cancel()}
+            versions={versions}
+            loadingVersions={loadingVersions}
+            versionsError={versionsError}
+            onRetryVersions={() => void loadVersions()}
+            defaultDir={defaultDir}
+            settings={settings}
+            java={java}
+            javaLoading={javaLoading}
+            javaError={javaError}
+            onRefreshJava={() => void loadJava()}
+            onOpenDir={openDir}
+            onOpenSettings={() => setSection('settings')}
+            demo={!IS_TAURI}
+          />
+        )}
+
+        {section === 'logs' && (
+          <LogsPage
+            logs={install.logs}
+            running={Boolean(install.running)}
+            onClear={install.clearLogs}
+          />
+        )}
+
+        {section === 'settings' && (
+          <SettingsPage
+            settings={settings}
+            defaultDir={defaultDir}
+            java={java}
+            javaLoading={javaLoading}
+            javaError={javaError}
+            onRefreshJava={() => void loadJava()}
+            onSave={saveAll}
+            onReset={resetAll}
+            onOpenDir={openDir}
+          />
+        )}
+      </main>
+    </>
   );
 }
-
-export default App;

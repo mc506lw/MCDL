@@ -26,7 +26,8 @@ export default defineConfig(() => ({
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      //    .shots 是无头浏览器截图的临时目录，不该触发页面重载
+      ignored: ["**/src-tauri/**", "**/.shots/**"],
     },
   },
 }));

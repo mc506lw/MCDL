@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use mcdl_core::types::{LogLevel, Progress, ProgressSink, Source, StageKind};
+use mcdl_core::types::{LogLevel, Progress, ProgressSink, Source};
 use mcdl_core::{InstallRequest, Installer, LoaderSpec};
 
 #[derive(Parser)]
@@ -50,18 +50,30 @@ enum Command {
 }
 
 /// 把引擎的进度事件打到终端。
+///
+/// 进度只在整数百分比变化时重画，否则 3000 个资源文件会把终端刷爆。
 struct StdoutSink {
-    last_stage: std::sync::Mutex<Option<StageKind>>,
+    last_pct: std::sync::atomic::AtomicUsize,
+}
+
+impl StdoutSink {
+    fn new() -> Self {
+        Self {
+            last_pct: std::sync::atomic::AtomicUsize::new(usize::MAX),
+        }
+    }
 }
 
 impl ProgressSink for StdoutSink {
     fn emit(&self, progress: Progress) {
+        use std::sync::atomic::Ordering;
+
         match progress {
             Progress::Stage {
-                kind, label, total, ..
+                index, total, label, ..
             } => {
-                *self.last_stage.lock().unwrap() = Some(kind);
-                println!("\n[{}/{}] {label}", index_of(kind, total), total);
+                self.last_pct.store(usize::MAX, Ordering::Relaxed);
+                println!("\n[{index}/{total}] {label}");
             }
             Progress::Files {
                 done,
@@ -75,8 +87,13 @@ impl ProgressSink for StdoutSink {
                 } else if total > 0 {
                     done as f64 / total as f64 * 100.0
                 } else {
-                    0.0
+                    100.0
                 };
+                let whole = pct.floor() as usize;
+                let previous = self.last_pct.swap(whole, Ordering::Relaxed);
+                if previous == whole && done != total {
+                    return;
+                }
                 print!(
                     "\r  {:>5.1}%  {done}/{total} 个文件  {:.1}/{:.1} MB   ",
                     pct,
@@ -98,21 +115,11 @@ impl ProgressSink for StdoutSink {
     }
 }
 
-fn index_of(kind: StageKind, total: usize) -> usize {
-    let order = [
-        StageKind::Java,
-        StageKind::Meta,
-        StageKind::Libraries,
-        StageKind::Assets,
-        StageKind::Client,
-        StageKind::Loader,
-    ];
-    order.iter().position(|k| *k == kind).map(|i| i + 1).unwrap_or(total)
-}
-
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     tracing_subscriber::fmt()
+        .without_time()
+        .with_target(false)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "mcdl=info".into()),
@@ -122,9 +129,21 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let source = match cli.source.to_ascii_lowercase().as_str() {
         "bmclapi" | "mirror" => Source::Bmclapi,
-        _ => Source::Official,
+        "official" | "mojang" => Source::Official,
+        other => {
+            eprintln!("警告：不认识的下载源 `{other}`，已回退到官方源（可选：official / bmclapi）");
+            Source::Official
+        }
     };
 
+    // 只打一次错误：anyhow 默认会再打一串 "Caused by"，和引擎自己的错误文案重复。
+    if let Err(e) = run(cli, source).await {
+        eprintln!("\n错误：{e}");
+        std::process::exit(1);
+    }
+}
+
+async fn run(cli: Cli, source: Source) -> anyhow::Result<()> {
     match cli.command {
         Command::Versions { release_only } => {
             let client = mcdl_core::net::HttpClient::new()?;
@@ -157,9 +176,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let installer = Installer::new()?;
-            let sink = StdoutSink {
-                last_stage: std::sync::Mutex::new(None),
-            };
+            let sink = StdoutSink::new();
             let report = installer.run(&req, &sink).await?;
             println!("\n\n安装完成");
             println!("  版本目录：{}", report.installed_version);

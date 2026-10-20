@@ -1,0 +1,631 @@
+/* ==========================================================================
+   MCDL 的版式。
+   --------------------------------------------------------------------------
+   颜色、字体、部件全部来自 styles/endfield.css（endfield-ui 套件），
+   这个文件只写三样东西：
+     1. 字体接入（Saira 自托管 + 中文落系统黑体）
+     2. 这个产品的版式（命令栏、两栏工作区、阶段轨道、日志行）
+     3. 套件里没有、按固定规则推出来的新部件（阶段轨道、日志行、空状态框）
+
+   变体：冷库（ice / cool / tight / grid / standard / full），
+   只在 index.html 的 <html data-ef-*> 上设置一次。
+   ========================================================================== */
+
+/* ---------- 字体 ---------- */
+
+@font-face {
+  font-family: 'Saira';
+  src: url('/fonts/Saira.ttf') format('truetype');
+  font-weight: 100 900;
+  font-stretch: 50% 125%;
+  font-display: swap;
+}
+
+:root {
+  /* 拉丁用 Saira（宽体、几何、可变宽度），中文落到系统黑体 */
+  --ef-font-ui: 'Saira', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'PingFang SC', sans-serif;
+  --ef-font-text: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'PingFang SC', sans-serif;
+}
+
+/* ---------- 窗口骨架：命令栏固定，内容区自己滚 ---------- */
+
+html {
+  height: 100%;
+}
+
+body.ef {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ef-rule) transparent;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 100rem;
+  margin-inline: auto;
+  padding: 1.5rem var(--ef-pad) 3rem;
+}
+
+.wrap.narrow {
+  /* 阅读页：左对齐的纸面，不居中（风格要求：白纸紧贴左边） */
+  max-width: 68rem;
+  margin-inline: 0;
+}
+
+/* ---------- 命令栏 = 窗口标题栏 ---------- */
+
+.cmdbar {
+  flex: none;
+  padding-inline: 0 0.5rem;
+  gap: 0 1.25rem;
+  border-bottom: 1px solid #000;
+}
+
+.cmdbar .brand {
+  padding-left: 0.9rem;
+  text-transform: uppercase;
+}
+
+.brand-text {
+  display: grid;
+  gap: 0.1rem;
+  line-height: 1.05;
+}
+
+.brand-text b {
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+}
+
+.brand-text small {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  opacity: 0.7;
+}
+
+.cmdbar nav {
+  align-items: stretch;
+}
+
+.cmdbar .util {
+  gap: 0.75rem;
+}
+
+/* 演示数据的标记：虚线框 = 不是正式数据 */
+.cmdbar .demo {
+  border-color: #6a6a6a;
+  color: #cfcfcf;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* 窗口按钮：直角、细线分隔、悬停变浅 */
+.winctl {
+  display: flex;
+  align-self: stretch;
+  margin-right: -0.5rem;
+}
+
+.winctl button {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  border: 0;
+  border-left: 1px solid #2a2a2a;
+  background: none;
+  color: #b8b8b8;
+  font-family: var(--ef-font-ui);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.winctl button:hover {
+  background: #232323;
+  color: #fff;
+}
+
+.winctl button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
+/* ---------- 页名 ---------- */
+
+.ef-head p {
+  max-width: 52rem;
+  margin-top: 0.35rem;
+}
+
+/* ---------- 工作区：左表单、右读数 ---------- */
+
+.work {
+  display: grid;
+  grid-template-columns: minmax(19rem, 23rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* 右栏：主视觉在上，队列和环境依次往下 —— 任务要求「右侧是队列与实时进度」 */
+.stack {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  min-width: 0;
+}
+
+@media (max-width: 940px) {
+  .work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 表单里每格之间留一条细线的节奏 */
+.setup {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.setup .field {
+  gap: 0.3rem;
+}
+
+.setup .field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.setup .field-head > span {
+  font-size: var(--ef-t-field);
+  font-weight: 600;
+}
+
+.setup .field-head small {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ef-ink-2);
+  font-size: 0.78rem;
+}
+
+.setup .ef-actions {
+  margin-top: 0.35rem;
+}
+
+/* 下拉框：去掉系统箭头，用一个自己画的小三角（跟着墨色走，深浅都看得见）。
+   选择器要比套件的 `.ef-form :is(input:not([type=checkbox]…), select, textarea)`
+   （特异度 0,2,1）高，否则 background 简写会把箭头盖掉。 */
+.ef-form.setup select {
+  appearance: none;
+  padding-right: 2rem;
+}
+
+.setup .select-wrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.setup .select-wrap select {
+  width: 100%;
+}
+
+.setup .select-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0.9rem;
+  width: 0.5rem;
+  height: 0.34rem;
+  margin-top: -0.14rem;
+  background: var(--ef-ink);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: none;
+}
+
+.setup .field-hint {
+  color: var(--ef-ink-2);
+  font-size: 0.78rem;
+}
+
+.setup .inline {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.setup .inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 当前任务（主视觉） ---------- */
+
+.hero .ef-facts {
+  margin-bottom: 0.9rem;
+  color: var(--ef-ink-2);
+}
+
+.hero .readouts {
+  margin-top: 0.2rem;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.hero .readouts b {
+  font-size: 3rem;
+}
+
+.hero .readouts small {
+  color: var(--ef-ink-2);
+  font-size: 0.85rem;
+}
+
+.hero .progress-block {
+  margin-top: 1.1rem;
+}
+
+.hero .ef-progress > i {
+  margin-top: 0.1rem;
+}
+
+/* 阶段轨道：套件里没有，按「步骤条」的推导做。
+   不能点 → 全部直角；当前阶段用强调色填充；已过阶段用墨色实心。 */
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ef-ink);
+}
+
+.rail > li {
+  display: grid;
+  gap: 0.1rem;
+  align-content: start;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.55rem 0;
+  border-right: 1px solid var(--ef-rule);
+}
+
+.rail > li:last-child {
+  border-right: 0;
+}
+
+.rail .no {
+  font-family: var(--ef-font-ui);
+  font-size: 0.68rem;
+  font-stretch: var(--ef-wider);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ef-ink-2);
+}
+
+.rail .zh {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail .fig {
+  overflow: hidden;
+  font-family: var(--ef-font-ui);
+  font-size: 0.68rem;
+  font-stretch: var(--ef-wide);
+  font-variant-numeric: tabular-nums;
+  color: var(--ef-ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 已过：墨色实心，编号反白 */
+.rail > li.is-done {
+  background: var(--ef-ink);
+  color: var(--ef-panel);
+  padding-left: 0.55rem;
+}
+
+.rail > li.is-done .no,
+.rail > li.is-done .fig {
+  color: var(--ef-panel);
+  opacity: 0.75;
+}
+
+/* 当前：强调色填充，只表示「就在这里」 */
+.rail > li.is-now {
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+  padding-left: 0.55rem;
+}
+
+.rail > li.is-now .no,
+.rail > li.is-now .fig {
+  color: var(--ef-on-signal);
+}
+
+/* 停住的那一格：虚线 = 没走完 */
+.rail > li.is-stop {
+  padding-left: 0.55rem;
+  outline: 1px dashed var(--ef-ink);
+  outline-offset: -1px;
+}
+
+.rail > li.is-stop .fig {
+  color: var(--ef-ink);
+}
+
+.rail > li.is-wait .zh,
+.rail > li.is-wait .fig {
+  color: var(--ef-ink-2);
+  font-weight: 400;
+}
+
+@media (max-width: 1120px) {
+  .rail .fig {
+    display: none;
+  }
+
+  .rail .zh {
+    font-size: 0.78rem;
+  }
+}
+
+.hero .ef-ledger {
+  margin-top: 1.1rem;
+}
+
+.hero .ef-ledger > li > :last-child {
+  overflow: hidden;
+  max-width: 60%;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 空状态：细线框里铺斜线纹，中间一块纸色底的句子 */
+.empty-box {
+  margin-top: 0.9rem;
+  padding: 1.5rem 1.2rem;
+  background: var(--ef-hatch);
+}
+
+.empty-box p {
+  display: inline-block;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  background: var(--ef-panel);
+  max-width: 34rem;
+  color: var(--ef-ink-2);
+  line-height: 1.7;
+}
+
+/* ---------- 队列行 ---------- */
+
+.queue .ef-rows > li {
+  align-items: start;
+}
+
+.queue .ver {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.queue .ver .loader {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ef-ink-2);
+}
+
+.queue .meta {
+  margin-top: 0.2rem;
+}
+
+.queue .fail-msg {
+  margin-top: 0.35rem;
+  color: var(--ef-ink-2);
+  font-size: 0.82rem;
+}
+
+/* ---------- 本机环境 ---------- */
+
+.env .ef-ledger > li > :last-child {
+  overflow: hidden;
+  max-width: 62%;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.env .ef-empty {
+  margin-top: 0.8rem;
+}
+
+.env-note {
+  margin: 0.8rem 0 0;
+  color: var(--ef-ink-2);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+/* ---------- 日志页 ---------- */
+
+.log-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.1rem 0 0;
+}
+
+.log-tools .grow {
+  margin-left: auto;
+}
+
+.log-tools .ef-setting {
+  flex: none;
+  border-bottom: 0;
+  padding: 0;
+}
+
+.logs {
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ef-rule);
+}
+
+.logs > li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.2rem 0.85rem;
+  align-items: baseline;
+  padding: 0.42rem 0.3rem;
+  border-bottom: 1px solid var(--ef-rule);
+}
+
+.logs > li.is-error .msg {
+  font-weight: 700;
+}
+
+.logs .msg {
+  overflow-wrap: anywhere;
+  font-family: var(--ef-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.logs .tag {
+  justify-self: start;
+  font-size: 0.68rem;
+  padding: 0.05em 0.4em;
+}
+
+.logs .tag.plain {
+  font-family: var(--ef-font-ui);
+  font-size: 0.68rem;
+  font-stretch: var(--ef-wider);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ef-ink-2);
+}
+
+.log-empty {
+  margin-top: 1.5rem;
+}
+
+/* ---------- 设置页 ---------- */
+
+.settings-block {
+  margin-top: 0.35rem;
+}
+
+.settings-block .ef-setting > :first-child {
+  min-width: 0;
+}
+
+/* 说明文字自己收窄，不要用 max-width 卡住整行，否则右侧控件会被拽到中间 */
+.settings-block .ef-setting small {
+  display: block;
+  max-width: 34rem;
+}
+
+.settings-block .ef-setting input[type='number'],
+.settings-block .ef-setting input[type='text'] {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--ef-rule);
+  border-radius: 0;
+  background: var(--ef-panel);
+  color: var(--ef-ink);
+  font: inherit;
+}
+
+.settings-block .ef-setting input:focus-visible {
+  border-color: var(--ef-ink);
+  outline: 2px solid var(--ef-trace);
+  outline-offset: -1px;
+}
+
+.settings-block .ef-setting .ctl {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(24rem, 52%);
+}
+
+.settings-block .ef-setting .ctl.num {
+  width: min(8rem, 26%);
+}
+
+.settings-block .ef-setting .ctl.wide {
+  width: min(30rem, 62%);
+}
+
+.settings-block .ef-setting .ctl input {
+  flex: 1;
+}
+
+.settings-save {
+  margin-top: 1.6rem;
+}
+
+.settings-block + .ef-group-head {
+  margin-top: 2rem;
+}
+
+/* ---------- 通用 ---------- */
+
+.path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--ef-font-mono);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+@media (max-width: 1120px) {
+  .hero .readouts b {
+    font-size: 2.4rem;
+  }
+}
