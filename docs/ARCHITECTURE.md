@@ -31,8 +31,9 @@ app/                 ← Tauri 2 + React 界面
 不要自己实现 Forge 的 `processors`。官方 installer 支持 headless：
 
 ```
-java -jar forge-installer.jar --installClient          # Forge / NeoForge
+java -jar forge-installer.jar --installClient <gameDir>          # Forge / NeoForge
 java -jar fabric-installer.jar client -dir <gameDir> -mcversion <v> -loader <v>
+java -jar quilt-installer.jar install client <v> <loader> --install-dir=<gameDir>
 ```
 
 调用二进制不传染 LGPL，行为也与官方一致。安装前必须保证 `<gameDir>/launcher_profiles.json` 存在，
@@ -126,7 +127,7 @@ pub enum Progress {
 
 - `detect`：`JAVA_HOME`、`PATH`、`C:\Program Files\Java\*`、`Eclipse Adoptium`、`~/.jdks`
 - `required_major`：≤1.16.5 → 8；1.17–1.20.4 → 17；1.20.5–1.21.x → 21；26.x 以 JSON 为准
-- `ensure`：Adoptium API `api.adoptium.net/v3/assets/latest/{major}/hotspot`，下载后解压到 `<gameDir>/runtime`
+- `ensure`：Adoptium API `api.adoptium.net/v3/assets/latest/{major}/hotspot`，下载后解压到 `<gameDir>/runtime/jre-<major>`（每个主版本一份，1.12 与 1.21 可以共存）
 
 ## 测试要求
 

@@ -1,0 +1,10 @@
+# 行尾统一用 LF 检出。
+#
+# rustfmt.toml 里写的是 newline_style = "Unix"，但 Windows 的 core.autocrlf=true
+# 会在检出时把文件转成 CRLF，于是新克隆的仓库跑 `cargo fmt --all -- --check`
+# 会对每个 .rs 报 "Incorrect newline style"。这条属性覆盖 autocrlf，保证
+# Windows / macOS / Linux 检出后都是 LF，fmt 门禁在任何平台都能过。
+*.rs text eol=lf
+
+# 脚本同理：CRLF 的 shell 脚本在 Linux 上会直接 `bad interpreter`。
+*.sh text eol=lf

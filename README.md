@@ -28,7 +28,7 @@ Minecraft 安装器。装原版，装 Fabric / Quilt / Forge / NeoForge，装完
 |---|---|---|
 | 1.20.4 原版全量（3853 文件） | 173 s | 708.8 MB |
 | 26.3 原版全量（5222 文件） | 217 s | 585.6 MB |
-| 1.12.2 原版全量 | 63 s | 172.5 MB |
+| 1.12.2 原版全量 | 63 s | 172.6 MB |
 | 1.21.1 + Fabric | 152 s | 93.6 MB（不含资源） |
 | 1.20.4 + Forge | 235 s | 179.8 MB（不含资源） |
 | 二次安装（全部命中缓存） | 1.5 s | 0 文件 / 0 字节 |
@@ -43,6 +43,19 @@ Minecraft 安装器。装原版，装 Fabric / Quilt / Forge / NeoForge，装完
 - 每次安装加载器都会重跑一次官方 installer（幂等，但重复安装仍需要几十秒）。
 
 ## 用法
+
+从源码跑（克隆下来就能用，不需要安装）：
+
+```bash
+cargo run -p mcdl -- versions          # 等价于下面的 mcdl versions
+cargo run -p mcdl -- install 1.21.1 --no-assets --dir ./tmp
+```
+
+想直接用 `mcdl` 这个名字，装一下：
+
+```bash
+cargo install --path crates/mcdl-cli
+```
 
 命令行：
 

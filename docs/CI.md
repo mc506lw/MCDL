@@ -111,10 +111,14 @@ cargo test -p mcdl-core -- --ignored download::tests::        # 只跑某个模�
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
-| 本地 clippy 绿、CI 红 | CI 在 Linux 上编译 `#[cfg(unix)]` / `#[cfg(target_os = "linux")]` 分支，Windows 本地根本看不到那些代码 | 按 CI 报的文件行号改；改完在本地 `cargo clippy --workspace --all-targets` 至少确认没引入新问题 |
+| 本地 clippy 绿、CI 红 | CI 在 Linux 上编译 `#[cfg(unix)]` / `#[cfg(target_os = "linux")]` 分支，Windows 本地根本看不到那些代码 | 按 CI 报的文件行号改；改完在本地 `cargo clippy -p mcdl-core -p mcdl --all-targets` 至少确认没引入新问题 |
+| `cargo fmt --check` 报一堆 `Incorrect newline style` | `rustfmt.toml` 要 LF，而 Windows 的 `core.autocrlf=true` 把检出转成了 CRLF（**旧克隆**才会，`.gitattributes` 已经强制 `.rs` 用 LF） | 重新 `git checkout -- .` 让属性生效，或 `git rm -r --cached . && git reset --hard`；再不行临时 `cargo fmt --all` 只会写回 LF，不产生内容改动 |
 | `cargo check -p mcdl-app` 报找不到 dist | `app/dist` 不入库 | 先 `cd app && pnpm install && pnpm build` |
-| Linux 上 `cargo check` 报 `webkit2gtk` / `appindicator` 找不到 | 缺 Tauri 系统依赖 | 照 `ci.yml` 里的 `apt-get install` 列表装 |
+| Linux 上 `cargo check` 报 `webkit2gtk` / `appindicator` 找不到 | 缺 Tauri 系统依赖 | 照 `ci.yml` 里 `tauri` job 的 `apt-get install` 列表装 |
 | `pnpm install --frozen-lockfile` 失败 | 本地 pnpm 大版本与 lockfile 不匹配（lockfileVersion 9.0，pnpm 11） | `corepack use pnpm@11` 或 `npm i -g pnpm@11` |
+
+> `.gitattributes` 里的 `*.rs text eol=lf` 不是可选项：没有它，Windows 上**全新克隆**出来的 `.rs` 是 CRLF，
+> `cargo fmt --check` 会对每个文件报 `Incorrect newline style`，看起来像「仓库没格式化」，其实是行尾被 git 换了。
 
 ---
 
@@ -186,4 +190,27 @@ python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
 - `rust` job 只跑 `-p mcdl-core -p mcdl`，所以 `app/src-tauri` 的 lint 覆盖靠 `tauri` job 的 `cargo check`（不是 clippy）。如果以后想让桌面壳也过 clippy，在 `tauri` job 里加一步 `cargo clippy -p mcdl-app --all-targets -- -D warnings` 即可。
 - Linux 上 `#[cfg(unix)]` 分支在本地 Windows 看不到，第一次 CI 跑红时按日志行号修（现在 clippy 是绿的，但这属于长期注意事项）。
 - 三个门禁现在都是硬门禁；唯一「只写不跑」的是 `release.yml`。
+
+---
+
+## 9. 全新克隆验证（2026-10-20）
+
+`git clone . /tmp/mcdl-fresh` 到一个空目录（工作树干净），然后**只照 README / docs 里写的命令**走一遍：
+
+| 命令 | 结果 |
+| --- | --- |
+| `cargo test -p mcdl-core` | ✅ 57 passed / 0 failed / 9 ignored |
+| `cargo run -p mcdl -- versions --release-only` | ✅ 正常列出 26.3 |
+| `cargo run -p mcdl -- install 1.20.4 --no-assets --dir ./tmp-fresh` | ✅ 65 文件 / 82.9 MB，232 s，Java 17 |
+| `cd app && pnpm install && pnpm build` | ✅ 通过（pnpm 11.25.0，6 s） |
+| `cargo fmt --all -- --check` | ✅ 通过（**在 `.gitattributes` 落地之后**） |
+| `cargo clippy -p mcdl-core -p mcdl --all-targets -- -D warnings` | ✅ 通过 |
+| `cargo test -p mcdl-core -p mcdl` | ✅ 57 passed / 9 ignored |
+| `cargo check -p mcdl-app` | ✅ 通过（前提：先 `pnpm build` 生成 `app/dist`） |
+
+这次验证修掉的三类问题（都只动文档 / 仓库配置，没动代码）：
+
+1. **`.gitattributes` 缺失**：Windows 全新克隆出来的 `.rs` 是 CRLF，`cargo fmt --check` 会对每个文件报 `Incorrect newline style`——看起来像「仓库没格式化」，其实是 `core.autocrlf` 换的行尾。加了 `*.rs text eol=lf` 之后新克隆直接绿。
+2. **README 没说怎么拿到 `mcdl` 命令**：用法里直接写 `mcdl versions`，但克隆下来并没有这个可执行文件。补了「从源码跑（`cargo run -p mcdl -- …`）」和「`cargo install --path crates/mcdl-cli`」。
+3. **`docs/ARCHITECTURE.md` 两处细节和代码对不上**：Forge installer 的命令行漏了目标目录（实际是 `--installClient <gameDir>`）；`ensure` 的落盘位置写的是 `<gameDir>/runtime`，实际是 `<gameDir>/runtime/jre-<major>`。顺手补了 Quilt 的 `install client … --install-dir=` 形态（它和 Fabric 不一样）。
 
