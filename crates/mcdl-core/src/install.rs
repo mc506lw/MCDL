@@ -156,13 +156,23 @@ impl Installer {
             // 这部分不经过我们的下载层，只能靠目录快照差分记账（D8）。
             let watched: [&Path; 2] = [&paths.libraries(), &paths.versions()];
             let before = tree_stats(&watched);
+            let versions_before = version_dir_names(&paths.versions());
             let ctx = LoaderCtx {
                 client: &self.client,
                 paths: &paths,
                 java: &java_path,
                 source: req.source,
             };
-            let result = loader::install(&ctx, spec, sink).await?;
+            let result = match loader::install(&ctx, spec, sink).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // Forge/NeoForge 的 installer 是「先写版本目录和 json，再下库跑 processors」，
+                    // 失败时那个半成品目录会留在 versions/ 里，被别的启动器当成可用版本。
+                    // 这里把它清掉，只保留装之前就存在的目录。
+                    discard_new_version_dirs(&paths.versions(), &versions_before);
+                    return Err(e);
+                }
+            };
             let after = tree_stats(&watched);
             outcome.downloaded += after.1.saturating_sub(before.1) as usize;
             outcome.bytes += after.0.saturating_sub(before.0);
@@ -646,6 +656,44 @@ fn tree_stats(dirs: &[&Path]) -> (u64, u64) {
     (bytes, files)
 }
 
+/// `versions/` 下现有的目录名。
+fn version_dir_names(versions: &Path) -> std::collections::BTreeSet<String> {
+    let Ok(entries) = std::fs::read_dir(versions) else {
+        return Default::default();
+    };
+    entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect()
+}
+
+/// 删掉这次安装新造出来的版本目录。
+///
+/// Forge / NeoForge 的 installer 是「先写版本目录和 json，再下库跑 processors」，
+/// 中途失败会把半成品留在 `versions/` 里——别的启动器会把它当成一个可用版本。
+fn discard_new_version_dirs(versions: &Path, before: &std::collections::BTreeSet<String>) {
+    let Ok(entries) = std::fs::read_dir(versions) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if before.contains(&name) {
+            continue;
+        }
+        match std::fs::remove_dir_all(&path) {
+            Ok(()) => tracing::warn!(version = %name, "加载器安装失败，已清掉半成品版本目录"),
+            Err(e) => tracing::warn!(version = %name, error = %e, "半成品版本目录清理失败"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -691,6 +739,38 @@ mod tests {
         req.loader = Some(LoaderSpec::new(crate::types::LoaderKind::Fabric, "1.21.1"));
         let plan = Installer::plan_stages(&req, &[]);
         assert_eq!(plan.last(), Some(&StageKind::Loader));
+    }
+
+    #[test]
+    fn library_json_skips_empty_and_internal_fields() {
+        // 写出的版本 JSON 要尽量贴近官方形态：空的 natives / rules / extract、
+        // 空 classifiers 都不该出现；`path` 是我们自己的落盘路径，官方没有这个字段。
+        let lib = crate::types::Library {
+            name: "org.lwjgl:lwjgl:3.3.3".into(),
+            downloads: crate::types::LibraryDownloads {
+                artifact: Some(crate::types::LibraryArtifact {
+                    path: Some("org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar".into()),
+                    url: "https://example.invalid/lwjgl.jar".into(),
+                    sha1: Some("abc".into()),
+                    size: Some(1),
+                }),
+                classifiers: Default::default(),
+            },
+            ..Default::default()
+        };
+
+        let v = serde_json::to_value(&lib).expect("序列化不该失败");
+        assert!(v.get("natives").is_none(), "natives: null 不该写出来");
+        assert!(v.get("rules").is_none(), "空 rules 不该写出来");
+        assert!(v.get("extract").is_none(), "extract: null 不该写出来");
+        assert!(
+            v["downloads"].get("classifiers").is_none(),
+            "空 classifiers 不该写出来"
+        );
+        assert!(
+            v["downloads"]["artifact"].get("path").is_none(),
+            "path 是内部字段"
+        );
     }
 
     #[test]

@@ -64,10 +64,10 @@ cargo install --path crates/mcdl-cli
 mcdl versions --release-only
 
 # 装原版
-mcdl install 1.21.1 --dir "D:\Games\.minecraft"
+mcdl install 1.21.1 --dir "D:/Games/.minecraft"
 
 # 装原版 + Fabric
-mcdl install 1.21.1 --loader fabric --dir "D:\Games\.minecraft"
+mcdl install 1.21.1 --loader fabric --dir "D:/Games/.minecraft"
 
 # 只装能启动的最小集合（跳过资源文件）
 mcdl install 1.21.1 --no-assets --dir ./tmp

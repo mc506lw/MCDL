@@ -96,7 +96,7 @@ cargo test -p mcdl-core -p mcdl                                  # 测试
 - 这些用例会真下载几十 MB，既慢又费流量；
 - `loader::real_fabric_install` 还要求 runner 上装了 Java，而 CI 里并没有装。
 
-`cargo test --workspace` 默认就不跑它们（输出里 `56 passed; 9 ignored`），**CI 不需要额外参数**。想手动跑：
+`cargo test -p mcdl-core -p mcdl` 默认就不跑它们（输出里 `57 passed; 9 ignored`），**CI 不需要额外参数**。想手动跑：
 
 ```bash
 cargo test -p mcdl-core -- --ignored                          # 全部

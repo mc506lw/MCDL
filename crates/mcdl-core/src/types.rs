@@ -86,8 +86,12 @@ pub struct VersionDetail {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileRef {
     pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
+    /// 资源索引里的逻辑路径，官方 JSON 里对应的是别的字段名，不直接写出。
+    #[serde(default, skip_serializing)]
     pub path: Option<String>,
 }
 
@@ -95,18 +99,25 @@ pub struct FileRef {
 pub struct AssetIndexRef {
     pub id: String,
     pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total_size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AssetIndex {
     pub objects: HashMap<String, AssetObject>,
-    /// 1.6 时代把资源铺进 assets/<name> 的虚拟布局
+    /// 1.6 时代把资源铺进 `<gameDir>/resources/` 的布局
     #[serde(default)]
     pub map_to_resources: bool,
-    #[serde(default)]
+    /// 1.7.x 把资源铺进 `assets/virtual/<索引名>/` 的布局。
+    ///
+    /// 官方索引里的键名是 `virtual`，不是 `virtual_`——少了这个 rename 就永远是
+    /// false，1.6–1.7.2 的游戏会没声音没语言。
+    #[serde(rename = "virtual", default)]
     pub virtual_: bool,
 }
 
@@ -129,41 +140,46 @@ pub struct Library {
     pub name: String,
     pub downloads: LibraryDownloads,
     /// 老版本 natives 的 classifier 选择表：os -> classifier 后缀
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub natives: Option<HashMap<String, String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<Rule>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extract: Option<Extract>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LibraryDownloads {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact: Option<LibraryArtifact>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub classifiers: HashMap<String, LibraryArtifact>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LibraryArtifact {
+    /// 我们自己算出来的落盘路径。官方 JSON 里没有这个字段，所以永不写出。
+    #[serde(default, skip_serializing)]
     pub path: Option<String>,
     pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Extract {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub action: RuleAction,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub os: Option<OsRule>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub features: Option<HashMap<String, bool>>,
 }
 
@@ -176,11 +192,11 @@ pub enum RuleAction {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OsRule {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arch: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
 
@@ -225,7 +241,6 @@ pub enum ArgValue {
 }
 
 // ---------------------------------------------------------------- 下载
-
 /// 一个待下载文件。
 #[derive(Debug, Clone)]
 pub struct DownloadJob {
