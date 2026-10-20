@@ -1,0 +1,28 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
+# Tauri
+app/src-tauri/target/
+app/src-tauri/gen/schemas/
+
+# 测试产物
+tmp-test/
+tmp-fabric/
+tmp-forge/
+tmp-neo/
+tmp-*/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
