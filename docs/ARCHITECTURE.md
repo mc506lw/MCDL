@@ -104,7 +104,7 @@ pub enum Progress {
   这两条不能混：`java-objc-bridge` 这类条目只写了 `[{allow, os: osx}]`，
   按「不命中就允许」会把 macOS 专用库下到 Windows 上。
   `os.version` 是正则（`^10\.5\.\d$`），拿不到系统版本时按「不命中」处理。
-- 老版本兼容：`minecraftArguments` 整串参数、`assets` 为 `pre-1.6` 的虚拟布局
+- 老版本兼容：`minecraftArguments` 整串参数；按资源名读文件的虚拟布局有两种——`map_to_resources`（≤1.5.2）铺到 `<gameDir>/resources/`，`virtual`（1.6–1.7.2）铺到 `assets/virtual/<索引名>/`
 
 ### net
 

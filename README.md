@@ -38,7 +38,7 @@ Minecraft 安装器。装原版，装 Fabric / Quilt / Forge / NeoForge，装完
 ## 已知限制
 
 - **NeoForge 需要能访问 `maven.neoforged.net`**。它的 installer 自己下载依赖库，BMCLAPI 的镜像对它无效——这是官方 installer 的行为，不是本项目能绕过的。
-- **1.6 及更早的版本会多占一份磁盘**。这些版本按资源名读文件，需要把 `assets/objects` 再铺一份到 `resources/`（1.5.2 约多占 50 MB）。
+- **1.5.2 及更早、以及 1.6–1.7.2 的版本会多占一份磁盘**。这些版本按资源名读文件，要把 `assets/objects` 再铺一份：`map_to_resources` 的（≤1.5.2）铺到 `resources/`，`virtual` 的（1.6–1.7.2）铺到 `assets/virtual/<索引名>/`（1.5.2 约多占 50 MB）。
 - **不提供启动功能**。装完请用你自己的启动器打开 `versions/` 下的实例。
 - 每次安装加载器都会重跑一次官方 installer（幂等，但重复安装仍需要几十秒）。
 
