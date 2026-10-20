@@ -38,6 +38,23 @@ export function SettingsPage({
   onOpenDir,
 }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
+  /** 主动添加一个游戏目录（不替换现有的）。 */
+  async function addDir() {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: '添加游戏目录',
+      });
+      if (typeof picked === 'string' && picked) {
+        onSave(rememberDir(settings, picked));
+      }
+    } catch {
+      // 用户取消或没有原生对话框：什么也不做
+    }
+  }
+
   const [runtimes, setRuntimes] = useState<string[] | null>(null);
 
   useEffect(() => setDraft(settings), [settings]);
@@ -255,13 +272,18 @@ export function SettingsPage({
 
       <div className="ef-group-head">
         <span>常用目录</span>
-        <small>Dirs</small>
+        <span>
+          <button className="ef-btn small" type="button" onClick={addDir}>
+            添加目录…
+          </button>{' '}
+          <small>Dirs</small>
+        </span>
       </div>
 
       {settings.dirs.length === 0 ? (
         <p className="ef-empty">
-          还没有记录任何目录。安装一次之后，用过的目录会自动出现在这里，
-          安装页的目录输入框也能直接选。
+          还没有记录任何目录。点上面的「添加目录…」选一个，或者装一次之后，
+          用过的目录会自动出现在这里。
         </p>
       ) : (
         <ul className="ef-ledger">
