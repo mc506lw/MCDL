@@ -17,6 +17,7 @@ import { useInstall } from './lib/useInstall';
 import { InstallPage } from './pages/InstallPage';
 import { LogsPage } from './pages/LogsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ImportPage } from './pages/ImportPage';
 import { VersionsPage } from './pages/VersionsPage';
 
 export default function App() {
@@ -169,6 +170,15 @@ export default function App() {
 
         {section === 'versions' && (
           <VersionsPage
+            gameDir={settings.gameDir || defaultDir}
+            dirs={settings.dirs}
+            onChangeDir={(dir) => saveAll(rememberDir(settings, dir))}
+            onOpenSettings={() => setSection('settings')}
+          />
+        )}
+
+        {section === 'import' && (
+          <ImportPage
             gameDir={settings.gameDir || defaultDir}
             dirs={settings.dirs}
             onChangeDir={(dir) => saveAll(rememberDir(settings, dir))}

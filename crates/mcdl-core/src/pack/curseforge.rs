@@ -294,8 +294,33 @@ fn version_from_file(raw: FileResponse) -> PackVersion {
     }
 }
 
+/// 从 `latestFilesIndexes` 里认出「支持哪些 MC 版本 / 哪些加载器」。
+///
+/// 搜索和详情两个响应都带这个数组，用它就不必为列表页多发 N 个请求。
+fn split_versions_loaders(indexes: &[FileIndexResponse]) -> (Vec<String>, Vec<String>) {
+    let mut game_versions: Vec<String> = Vec::new();
+    let mut loaders: Vec<String> = Vec::new();
+    for index in indexes {
+        if let Some(v) = &index.game_version {
+            if looks_like_mc_version(v) && !game_versions.contains(v) {
+                game_versions.push(v.clone());
+            }
+        }
+        if let Some(loader) = &index.mod_loader {
+            let lower = loader.to_ascii_lowercase();
+            if LoaderKind::parse(&lower).is_some() && !loaders.contains(&lower) {
+                loaders.push(lower);
+            }
+        }
+    }
+    // 从新到旧：按点分段的数字比，比不出来就保持平台给的顺序。
+    game_versions.sort_by(|a, b| version_key(b).cmp(&version_key(a)));
+    (game_versions, loaders)
+}
+
 /// 版本号 → 可比较的元组（`1.21.10 > 1.21.9`，字符串比较做不到）。
-fn version_key(raw: &str) -> Vec<u32> {    raw.split('.')
+fn version_key(raw: &str) -> Vec<u32> {
+    raw.split('.')
         .map(|part| {
             let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
             digits.parse().unwrap_or(0)
@@ -546,6 +571,23 @@ mod tests {
         assert!(!looks_like_mc_version("Client"));
         assert!(!looks_like_mc_version("1"));
         assert!(!looks_like_mc_version(""));
+    }
+
+    #[test]
+    fn latest_file_indexes_give_versions_and_loaders() {
+        let raw: Vec<FileIndexResponse> = serde_json::from_str(
+            r#"[
+                { "gameVersion": "1.20.1", "modLoader": "Forge" },
+                { "gameVersion": "1.21.1", "modLoader": "NeoForge" },
+                { "gameVersion": "1.21.1", "modLoader": "Fabric" },
+                { "gameVersion": "1.9.4", "modLoader": "Fabric" },
+                { "gameVersion": null, "modLoader": null }
+            ]"#,
+        )
+        .unwrap();
+        let (versions, loaders) = split_versions_loaders(&raw);
+        assert_eq!(versions, ["1.21.1", "1.20.1", "1.9.4"], "从新到旧、去重");
+        assert_eq!(loaders, ["forge", "neoforge", "fabric"]);
     }
 
     #[test]

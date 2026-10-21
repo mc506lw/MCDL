@@ -4,6 +4,9 @@
 //! [`Progress`] 通过 IPC channel 推回前端。任何下载、校验、解压逻辑都不写在这里，
 //! 否则 CLI 和 GUI 就会各有一份实现。
 
+mod cmd_extras;
+mod cmd_import;
+
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -215,6 +218,14 @@ pub fn run() {
             list_installed,
             remove_version,
             preview_install,
+            cmd_extras::extras_resolve,
+            cmd_extras::extras_apply,
+            cmd_extras::extras_validate_name,
+            cmd_extras::extras_optifine_installer,
+            cmd_import::import_scan,
+            cmd_import::import_measure,
+            cmd_import::import_start,
+            cmd_import::import_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

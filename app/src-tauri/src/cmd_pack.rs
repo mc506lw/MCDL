@@ -77,6 +77,10 @@ pub async fn pack_project(
 }
 
 /// 某个整合包的所有版本（从新到旧），安装前用它让用户挑版本。
+///
+/// 界面的下拉框最多要 [`VERSION_LIST_LIMIT`] 条：Modrinth 上热门的整合包能有几百个版本，
+/// 全部塞进下拉框既没人翻，序列化也白花时间。安装时传的仍然是精确的 version id，
+/// 引擎那边照样按 id 找得到（`pack::resolve_version` 用的是完整列表）。
 #[tauri::command]
 pub async fn pack_versions(
     source: PackSource,
@@ -84,10 +88,15 @@ pub async fn pack_versions(
     api_key: Option<String>,
 ) -> Result<Vec<PackVersion>, String> {
     let client = HttpClient::new().map_err(|e| e.to_string())?;
-    pack::versions(&client, source, &id, api_key.as_deref())
+    let mut list = pack::versions(&client, source, &id, api_key.as_deref())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    list.truncate(VERSION_LIST_LIMIT);
+    Ok(list)
 }
+
+/// 版本下拉框最多显示多少条。
+const VERSION_LIST_LIMIT: usize = 60;
 
 /// 开始装一个整合包。立刻返回，进度和结果都走 `on_event`。
 #[tauri::command]

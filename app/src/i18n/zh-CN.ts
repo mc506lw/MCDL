@@ -182,6 +182,7 @@ export const zhCN = {
     s2: '版本', // L5
     s3: '日志', // L6
     s4: '设置', // L7
+    s5: '导入',
   },
 
   // ---- lib/format.ts ----

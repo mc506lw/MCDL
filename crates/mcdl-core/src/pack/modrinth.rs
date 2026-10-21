@@ -420,7 +420,6 @@ mod tests {
         // 外层一组 + 两个内层组 = 3 对括号，注入的方括号必须已经被丢掉
         assert_eq!(text.matches('[').count(), 3, "结构不能被注入：{text}");
         assert_eq!(text.matches(']').count(), 3);
-        assert!(!text.contains('"'), "值里的引号要被丢掉：{text}");
         assert_eq!(
             text,
             r#"[["project_type:modpack"],["versions:1.21,x:"]]"#,

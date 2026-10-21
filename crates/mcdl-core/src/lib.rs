@@ -12,7 +12,9 @@
 
 pub mod download;
 pub mod error;
+pub mod extras;
 pub mod install;
+pub mod import;
 pub mod installed;
 pub mod java;
 pub mod loader;

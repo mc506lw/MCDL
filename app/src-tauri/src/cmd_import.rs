@@ -78,9 +78,14 @@ pub fn import_scan() -> ScanResult {
 ///
 /// 只数各版本目录 + mods/config/saves，不数 libraries/assets——那些是共享的，
 /// 导入也不搬。扫描阶段故意不算体积（大目录会拖慢首屏），界面拿到列表之后再补。
+///
+/// 用 `async` + `spawn_blocking`：递归 stat 一个几万文件的 mods 目录要几百毫秒，
+/// 同步命令会在主线程上跑，界面会卡一下。
 #[tauri::command]
-pub fn import_measure(item: ImportItem) -> DirSize {
-    import::measure_item(&item)
+pub async fn import_measure(item: ImportItem) -> std::result::Result<DirSize, String> {
+    tauri::async_runtime::spawn_blocking(move || import::measure_item(&item))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 开始一次导入。立刻返回，进度和结果都走 `on_event`。
