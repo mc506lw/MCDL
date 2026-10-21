@@ -1156,3 +1156,35 @@ body.ef {
   opacity: 0.45;
   cursor: default;
 }
+
+/* ---------- 命令栏里的交流群入口 ---------- */
+/* 深色命令栏上，强调色做字和线是允许的（深色主题里 signal 就是 trace）。
+   不做整块填充，是为了不和"当前分区"那块强调色抢注意力。 */
+
+.group-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--ef-signal);
+  color: var(--ef-signal);
+  font-family: var(--ef-font-ui);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.group-link b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.group-link:hover,
+.group-link:focus-visible {
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+  outline: none;
+}

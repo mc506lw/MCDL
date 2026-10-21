@@ -62,6 +62,15 @@ export function CommandBar({ section, onSection, demo }: Props) {
             预览
           </span>
         )}
+        <a
+          className="group-link"
+          href="https://qm.qq.com/q/IEiEjWiXe4"
+          target="_blank"
+          rel="noreferrer"
+          title="加入交流群：老万的 MC 技术群 810329264"
+        >
+          QQ 群 <b>810329264</b>
+        </a>
         <button className="ef-btn small" type="button" data-theme-toggle>
           深浅
         </button>
