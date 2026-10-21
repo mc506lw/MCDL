@@ -106,6 +106,8 @@ export interface ExtrasRequest {
   fabric_api: boolean;
   optifine: boolean;
   rename_to?: string | null;
+  /** 版本隔离：Fabric API / OptiFine 进 `versions/<版本id>/mods/`（默认开）还是根 `mods/` */
+  isolated?: boolean;
 }
 
 export interface NameCheck {
@@ -279,6 +281,8 @@ export interface RunExtrasArgs {
   options: ExtrasOptions;
   /** 这次安装是什么时候开始的（毫秒时间戳），用来认「刚装出来的版本」 */
   startedAt: number;
+  /** 版本隔离（设置页的开关）：决定附加模组进版本目录还是根 mods/ */
+  isolated: boolean;
 }
 
 /**
@@ -352,7 +356,7 @@ let extrasGeneration = 0;
  * 的老版本去改名。
  */
 export async function runExtrasAfterInstall(args: RunExtrasArgs): Promise<void> {
-  const { gameDir, mcVersion, loader, options, startedAt } = args;
+  const { gameDir, mcVersion, loader, options, startedAt, isolated } = args;
   const renameTo = options.name.trim();
   const generation = ++extrasGeneration;
 
@@ -398,6 +402,7 @@ export async function runExtrasAfterInstall(args: RunExtrasArgs): Promise<void> 
       fabric_api: options.fabricApi,
       optifine: options.optifine,
       rename_to: renameTo || null,
+      isolated,
     });
     if (generation !== extrasGeneration) return;
 

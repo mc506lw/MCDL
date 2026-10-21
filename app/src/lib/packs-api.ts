@@ -128,6 +128,8 @@ export interface PackInstallRequest {
   concurrency: number;
   java?: string | null;
   skip_assets: boolean;
+  /** 版本隔离：模组进 `versions/<版本id>/mods/`（默认开）还是根 `mods/` */
+  isolated?: boolean;
 }
 
 export interface PackInstallReport {
@@ -139,6 +141,10 @@ export interface PackInstallReport {
   /** 例如 `Fabric 0.16.9`；原版整合包是 null */
   loader: string | null;
   installed_version: string;
+  /** 这次模组落在哪（相对 gameDir），例如 `versions/xxx/mods` */
+  mods_dir?: string;
+  /** 这次安装用的是不是版本隔离 */
+  isolated?: boolean;
   game_dir: string;
   pack_files: number;
   pack_bytes: number;

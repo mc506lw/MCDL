@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::download;
 use crate::error::Result;
+use crate::isolate;
 use crate::net::HttpClient;
 use crate::paths::GamePaths;
 use crate::types::{DownloadJob, LoaderKind};
@@ -221,13 +222,19 @@ pub async fn resolve(
     }))
 }
 
-/// 把 Fabric API 下载到 `<gameDir>/mods/`。永远返回一条结论，不抛错：
+/// 把 Fabric API 下载到模组目录。永远返回一条结论，不抛错：
 /// 附加项失败不该让一次已经成功的安装显示成失败。
+///
+/// 落点由版本隔离决定（[`crate::isolate::mods_dir`]）：
+/// 开着隔离是 `<gameDir>/versions/<version_id>/mods/`，关掉是 `<gameDir>/mods/`。
+/// `version_id` 必须是改名之后的最终版本目录名。
 pub async fn install(
     client: &HttpClient,
     paths: &GamePaths,
     loader: Option<LoaderKind>,
     mc_version: &str,
+    version_id: &str,
+    isolated: bool,
 ) -> FabricApiOutcome {
     let Some(kind) = loader else {
         return FabricApiOutcome::new(ExtraStatus::Skipped, "原版不需要 Fabric API");
@@ -255,11 +262,21 @@ pub async fn install(
         }
     };
 
-    let mods = paths.root().join("mods");
-    if let Err(e) = std::fs::create_dir_all(&mods) {
+    let mods = match isolate::mods_dir(paths.root(), version_id, isolated) {
+        Ok(target) => target,
+        Err(e) => {
+            return FabricApiOutcome::new(
+                ExtraStatus::Failed,
+                format!("算不出模组该放哪（版本隔离）：{e}"),
+            )
+            .with_file(file)
+        }
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&mods.dir) {
         return FabricApiOutcome::new(
             ExtraStatus::Failed,
-            format!("建不了 mods 目录（{}）：{e}", mods.display()),
+            format!("建不了模组目录（{}）：{e}", mods.dir.display()),
         )
         .with_file(file);
     }
@@ -267,11 +284,12 @@ pub async fn install(
     let dest = mods.join(&file.filename);
     if dest.is_file() {
         let size = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
-        tracing::info!(path = %dest.display(), "mods/ 里已经有同名文件，跳过");
+        tracing::info!(path = %dest.display(), "模组目录里已经有同名文件，跳过");
         let mut outcome = FabricApiOutcome::new(
             ExtraStatus::Skipped,
             format!(
-                "mods/ 里已经有 {}（{:.1} MB），跳过",
+                "{} 里已经有 {}（{:.1} MB），跳过",
+                mods.label(),
                 file.filename,
                 size as f64 / 1_048_576.0
             ),
@@ -302,12 +320,14 @@ pub async fn install(
         path = %dest.display(),
         bytes,
         version = %file.version,
-        "Fabric API 已放进 mods/"
+        isolated = mods.isolated,
+        "Fabric API 已落盘"
     );
     let mut outcome = FabricApiOutcome::new(
         ExtraStatus::Done,
         format!(
-            "已放入 mods/{}（{:.1} MB）",
+            "已放入 {}{}（{:.1} MB）",
+            mods.label(),
             file.filename,
             bytes as f64 / 1_048_576.0
         ),

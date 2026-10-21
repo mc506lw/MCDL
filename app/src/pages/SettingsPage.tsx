@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '../lib/api';
+import { ISOLATION_NOTICE } from '../lib/isolate';
 import {
   DEFAULT_SETTINGS,
   clampConcurrency,
@@ -127,6 +128,44 @@ export function SettingsPage({
             onChange={(event) => patch({ skipAssets: event.target.checked })}
           />
         </label>
+      </div>
+
+      <h2 className="ef-group-head">
+        <span className="ef-pair">
+          <span className="ef-eyebrow">Isolation</span>
+          <span>版本隔离</span>
+        </span>
+        <span className="ef-field">{draft.isolated ? '开' : '关'}</span>
+      </h2>
+
+      <div className="settings-block">
+        <label className="ef-setting">
+          <span>
+            <b>版本隔离</b>
+            <small>
+              开：模组装进 <code>versions/&lt;版本id&gt;/mods/</code>，每个版本一份，
+              同目录装第二个整合包不会混。
+              <br />
+              关：模组装进共享的 <code>mods/</code>，所有版本共用。
+            </small>
+          </span>
+          <input
+            className="ef-switch"
+            type="checkbox"
+            role="switch"
+            checked={draft.isolated}
+            onChange={(event) => patch({ isolated: event.target.checked })}
+          />
+        </label>
+
+        <p className="ef-notice" data-flag="给谁用">
+          {ISOLATION_NOTICE}
+        </p>
+
+        <p className="ef-lede ef-read">
+          MCDL 只负责把模组装到对的位置，不启动游戏，也不改启动器的行为。
+          已经装好的版本不会自动迁移：想换落点，重新装一次那个整合包最稳。
+        </p>
       </div>
 
       <h2 className="ef-group-head">

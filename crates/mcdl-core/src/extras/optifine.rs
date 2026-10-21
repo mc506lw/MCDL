@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::download;
 use crate::error::{Error, IoContext, Result};
+use crate::isolate;
 use crate::net::HttpClient;
 use crate::paths::GamePaths;
 use crate::types::LoaderKind;
@@ -514,13 +515,18 @@ fn is_jar(path: &Path) -> bool {
 
 /// 尝试自动装 OptiFine。永远返回一条结论，不抛错。
 ///
-/// 只有 `Forge + 1.13+` 会真的下载并复制进 `mods/`；其余组合返回
+/// 只有 `Forge + 1.13+` 会真的下载并复制进模组目录；其余组合返回
 /// `Manual` / `Skipped` 并写明原因（官方安装器由单独的「打开」命令处理）。
+///
+/// 模组落点由版本隔离决定（[`crate::isolate::mods_dir`]）。OptiFine 是最典型的
+/// 「只属于这一个版本」的模组，隔离开着时不该出现在共享的根 `mods/` 里。
 pub async fn install(
     client: &HttpClient,
     paths: &GamePaths,
     loader: Option<LoaderKind>,
     mc_version: &str,
+    version_id: &str,
+    isolated: bool,
 ) -> OptifineOutcome {
     let (mode, reason) = support(loader, mc_version);
     if mode != OptifineMode::ModsFolder {
@@ -588,11 +594,24 @@ pub async fn install(
         return outcome;
     }
 
-    let mods = paths.root().join("mods");
-    if let Err(e) = std::fs::create_dir_all(&mods) {
+    let mods = match isolate::mods_dir(paths.root(), version_id, isolated) {
+        Ok(target) => target,
+        Err(e) => {
+            let mut outcome = OptifineOutcome::new(
+                ExtraStatus::Failed,
+                format!("算不出模组该放哪（版本隔离）：{e}"),
+                mode,
+            )
+            .with_build(build);
+            outcome.installer_path = Some(downloaded.path);
+            return outcome;
+        }
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&mods.dir) {
         let mut outcome = OptifineOutcome::new(
             ExtraStatus::Failed,
-            format!("建不了 mods 目录（{}）：{e}", mods.display()),
+            format!("建不了模组目录（{}）：{e}", mods.dir.display()),
             mode,
         )
         .with_build(build);
@@ -604,7 +623,7 @@ pub async fn install(
     if dest.is_file() {
         let mut outcome = OptifineOutcome::new(
             ExtraStatus::Skipped,
-            format!("mods/ 里已经有 {}，跳过", build.filename),
+            format!("{} 里已经有 {}，跳过", mods.label(), build.filename),
             mode,
         )
         .with_build(build);
@@ -618,7 +637,7 @@ pub async fn install(
     if let Err(e) = std::fs::copy(&downloaded.path, &dest) {
         let mut outcome = OptifineOutcome::new(
             ExtraStatus::Failed,
-            format!("把 {} 复制到 mods/ 失败：{e}", build.filename),
+            format!("把 {} 复制到 {} 失败：{e}", build.filename, mods.label()),
             mode,
         )
         .with_build(build);
@@ -629,12 +648,14 @@ pub async fn install(
     tracing::info!(
         path = %dest.display(),
         edition = %build.edition,
-        "OptiFine 已放进 mods/"
+        isolated = mods.isolated,
+        "OptiFine 已落盘"
     );
     let mut outcome = OptifineOutcome::new(
         ExtraStatus::Done,
         format!(
-            "已放入 mods/{}（{:.1} MB）；它是 Forge mod，启动时选这次装的 Forge 版本即可",
+            "已放入 {}{}（{:.1} MB）；它是 Forge mod，启动时选这次装的 Forge 版本即可",
+            mods.label(),
             build.filename,
             downloaded.bytes as f64 / 1_048_576.0
         ),

@@ -33,6 +33,7 @@ import {
   type PackSource,
   type PackVersion,
 } from '../lib/packs-api';
+import { loadSettings } from '../lib/settings';
 import { LOADER_LABEL, type LoaderKind, type LogLevel, type Source } from '../lib/types';
 
 interface Props {
@@ -322,6 +323,9 @@ export function PacksPage({
       concurrency,
       java: javaPath.trim() || null,
       skip_assets: skipAssets,
+      // 版本隔离是全局设置（设置页），这里读已保存的值：决定模组进
+      // versions/<版本id>/mods/ 还是根 mods/。
+      isolated: loadSettings().isolated,
     };
 
     try {

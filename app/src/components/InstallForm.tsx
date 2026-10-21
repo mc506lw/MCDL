@@ -223,6 +223,8 @@ export function InstallForm({
       loader: req.loader?.kind ?? null,
       options: { ...extras, name: extras.name.trim() },
       startedAt: Date.now(),
+      // 附加模组（Fabric API / OptiFine）也遵守版本隔离。
+      isolated: settings.isolated,
     });
     resetExtras();
     onStart(req);

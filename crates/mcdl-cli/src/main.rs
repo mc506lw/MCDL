@@ -46,6 +46,17 @@ enum Command {
         /// 指定 java 可执行文件
         #[arg(long)]
         java: Option<PathBuf>,
+        /// 装完补 Fabric API / QFAPI（Fabric / Quilt 生效）。
+        /// 主要用途：真跑一次，看模组落在哪个 mods/ 下。
+        #[arg(long)]
+        fabric_api: bool,
+        /// 版本隔离（默认开）：模组写进 `versions/<版本id>/mods/`。
+        /// 只有 PCL / HMCL 这类支持隔离的启动器读得到。
+        #[arg(long, action = clap::ArgAction::SetTrue, overrides_with = "no_isolate")]
+        isolated: bool,
+        /// 关掉版本隔离：模组写进共享的 `mods/`（所有启动器都读，多个包会混）
+        #[arg(long, action = clap::ArgAction::SetTrue, overrides_with = "isolated")]
+        no_isolate: bool,
     },
 }
 
@@ -168,7 +179,14 @@ async fn run(cli: Cli, source: Source) -> anyhow::Result<()> {
             concurrency,
             no_assets,
             java,
+            fabric_api,
+            isolated: _,
+            no_isolate,
         } => {
+            // 默认开；`--no-isolate` 才关。`--isolated` 只是把默认值写明，允许和
+            // `--no-isolate` 互相覆盖（后写的赢）。
+            let isolated = !no_isolate;
+
             let mut req = InstallRequest::new(&cli.dir, &version);
             req.source = source;
             req.concurrency = concurrency;
@@ -192,6 +210,27 @@ async fn run(cli: Cli, source: Source) -> anyhow::Result<()> {
             );
             if let Some(j) = report.java {
                 println!("  Java：    {}", j.display());
+            }
+
+            // 补 Fabric API：这是「模组落点」最直接的验证路径——它会真的写一个
+            // jar 进 mods/，隔离开/关的区别在磁盘上能直接看到。
+            if fabric_api {
+                let extras_req = mcdl_core::extras::ExtrasRequest {
+                    game_dir: report.game_dir.clone(),
+                    mc_version: version.clone(),
+                    loader: req.loader.as_ref().map(|l| l.kind),
+                    installed_version: Some(report.installed_version.clone()),
+                    fabric_api: true,
+                    optifine: false,
+                    rename_to: None,
+                    isolated,
+                };
+                let client = mcdl_core::net::HttpClient::new()?;
+                let extras = mcdl_core::extras::apply(&client, &extras_req).await;
+                println!("\n附加项");
+                for notice in &extras.notices {
+                    println!("  {:<10} {}", notice.item, notice.message);
+                }
             }
         }
     }

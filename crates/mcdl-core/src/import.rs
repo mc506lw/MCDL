@@ -25,6 +25,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, IoContext, Result};
+use crate::isolate;
 use crate::types::LogLevel;
 
 // ---------------------------------------------------------------- 启动器
@@ -1034,6 +1035,11 @@ pub struct ImportRequest {
     /// 同盘硬链代替复制。默认 false：复制更安全，改目标不会影响源
     #[serde(default)]
     pub hardlink: bool,
+    /// 版本隔离：导入的 mods 放进 `versions/<版本id>/mods/`（开，默认）还是根 `mods/`。
+    ///
+    /// 没有可导入的版本时退回共享目录，并在日志里说清楚原因。
+    #[serde(default = "crate::isolate::default_on")]
+    pub isolated: bool,
 }
 
 impl ImportRequest {
@@ -1048,6 +1054,7 @@ impl ImportRequest {
             include_saves: false,
             overwrite: false,
             hardlink: false,
+            isolated: true,
         }
     }
 }
@@ -1169,6 +1176,8 @@ pub fn import(
     // ---------- 规划 ----------
     let mut stages: Vec<PlanStage> = Vec::new();
     let mut skipped_versions: Vec<String> = Vec::new();
+    // 这次真的会搬过去的版本 id。mods 的隔离落点要用它。
+    let mut planned_versions: Vec<String> = Vec::new();
 
     for raw in &req.version_ids {
         let id = sanitize_version_id(raw)?;
@@ -1189,6 +1198,7 @@ pub fn import(
             });
             continue;
         }
+        planned_versions.push(id.clone());
         stages.push(PlanStage {
             label: format!("版本 {id}"),
             src,
@@ -1197,11 +1207,47 @@ pub fn import(
         });
     }
 
-    for (sub, include) in [
-        ("mods", req.include_mods),
-        ("config", req.include_config),
-        ("saves", req.include_saves),
-    ] {
+    // mods 是实例级的东西：隔离开着时，源 mods 要跟着导入的版本进各自的
+    // `versions/<id>/mods/`。落点只走 isolate::mods_dir。
+    if req.include_mods {
+        let src = source.join("mods");
+        if src.is_dir() {
+            if req.isolated && !planned_versions.is_empty() {
+                for id in &planned_versions {
+                    match isolate::mods_dir(&target, id, true) {
+                        Ok(mods) => stages.push(PlanStage {
+                            label: format!("mods → {}", mods.label()),
+                            src: src.clone(),
+                            dst: mods.dir,
+                            version_id: None,
+                        }),
+                        Err(e) => sink.emit(ImportProgress::Log {
+                            level: LogLevel::Warn,
+                            message: format!("版本 {id} 的模组落点算不出来，跳过它的 mods：{e}"),
+                        }),
+                    }
+                }
+            } else {
+                if req.isolated {
+                    sink.emit(ImportProgress::Log {
+                        level: LogLevel::Warn,
+                        message: "版本隔离开着，但这次没有可导入的版本，模组只能放进共享的 mods/\
+                                  （官方启动器读得到，PCL / HMCL 的隔离实例读不到）"
+                            .to_string(),
+                    });
+                }
+                let shared = isolate::mods_dir(&target, "", false)?.dir;
+                stages.push(PlanStage {
+                    label: "mods".to_string(),
+                    src,
+                    dst: shared,
+                    version_id: None,
+                });
+            }
+        }
+    }
+
+    for (sub, include) in [("config", req.include_config), ("saves", req.include_saves)] {
         if !include {
             continue;
         }
@@ -2064,6 +2110,7 @@ mod tests {
 
         let mut req = ImportRequest::new(&src, &dst);
         req.version_ids = vec!["1.21.1".to_string()];
+        req.isolated = false; // 共享目录模式：模组进根 mods/
         let report = import(&req, &NullSink, &cancel_token()).expect("导入该成功");
 
         assert_eq!(report.versions, vec!["1.21.1".to_string()]);
@@ -2086,6 +2133,59 @@ mod tests {
             "mod"
         );
         assert!(src.join("versions/1.21.1/1.21.1.jar").is_file());
+    }
+
+    /// 隔离开着（默认）：源 mods 跟着导入的版本进 `versions/<id>/mods/`，
+    /// 根目录不该冒出 mods/；config 仍按共享目录走。
+    #[test]
+    fn import_puts_mods_into_the_version_dir_when_isolated() {
+        let tmp = TempDir::new("import-iso");
+        let src = fake_source(tmp.path());
+        let dst = tmp.path().join("dst/.minecraft");
+
+        let mut req = ImportRequest::new(&src, &dst);
+        req.version_ids = vec!["1.21.1".to_string()];
+        assert!(req.isolated, "导入默认就是隔离的");
+        import(&req, &NullSink, &cancel_token()).expect("导入该成功");
+
+        assert!(dst.join("versions/1.21.1/mods/sodium.jar").is_file());
+        assert!(dst.join("versions/1.21.1/mods/lib/extra.jar").is_file());
+        assert!(!dst.join("mods").exists(), "隔离开着不该在根目录建 mods/");
+        assert!(
+            dst.join("config/sodium.toml").is_file(),
+            "config 仍走共享目录"
+        );
+    }
+
+    /// 没有可导入的版本时，隔离开着也只能放共享目录——但不能静默这么做，
+    /// 日志里必须有一条说明。
+    #[test]
+    fn import_without_versions_falls_back_to_shared_mods_and_says_so() {
+        struct Collect(Mutex<Vec<String>>);
+        impl ImportSink for Collect {
+            fn emit(&self, progress: ImportProgress) {
+                if let ImportProgress::Log { message, .. } = progress {
+                    self.0.lock().unwrap().push(message);
+                }
+            }
+        }
+
+        let tmp = TempDir::new("import-iso-fallback");
+        let src = fake_source(tmp.path());
+        let dst = tmp.path().join("dst/.minecraft");
+        let sink = Collect(Mutex::new(Vec::new()));
+
+        let mut req = ImportRequest::new(&src, &dst);
+        req.version_ids.clear();
+        req.include_config = false;
+        import(&req, &sink, &cancel_token()).expect("导入该成功");
+
+        assert!(dst.join("mods/sodium.jar").is_file());
+        let logs = sink.0.lock().unwrap();
+        assert!(
+            logs.iter().any(|m| m.contains("没有可导入的版本")),
+            "缺一条回退说明：{logs:?}"
+        );
     }
 
     #[test]
@@ -2241,7 +2341,8 @@ mod tests {
         assert!(report.files >= 3);
         // 同卷时走硬链，跨卷时退回复制——两种都算成功
         assert!(report.links + report.files >= 3);
-        assert!(dst.join("mods/sodium.jar").is_file());
+        // 默认隔离：模组跟着版本进 versions/<id>/mods/
+        assert!(dst.join("versions/1.21.1/mods/sodium.jar").is_file());
     }
 
     #[test]

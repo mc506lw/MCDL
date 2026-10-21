@@ -129,31 +129,51 @@ fn detect_from_libraries(json: &serde_json::Value) -> Option<(String, Option<Str
     let libs = json.get("libraries")?.as_array()?;
 
     // 顺序有意义：neoforge 的坐标里也可能出现 forge 字样，先判 neo。
-    const RULES: [(&str, &str); 5] = [
+    // 第一轮找「主坐标」——能同时拿到加载器版本号。
+    const EXACT: [(&str, &str); 5] = [
         ("net.neoforged:neoforge:", "NeoForge"),
         ("net.neoforged:forge:", "NeoForge"),
         ("net.fabricmc:fabric-loader:", "Fabric"),
         ("org.quiltmc:quilt-loader:", "Quilt"),
         ("net.minecraftforge:forge:", "Forge"),
     ];
-
     for lib in libs {
         let Some(name) = lib.get("name").and_then(|v| v.as_str()) else {
             continue;
         };
-        for (prefix, label) in RULES {
+        for (prefix, label) in EXACT {
             if let Some(rest) = name.strip_prefix(prefix) {
                 // `group:artifact:version[:classifier]`
                 let version = rest.split(':').next().filter(|v| !v.is_empty());
                 return Some((label.to_string(), version.map(str::to_owned)));
             }
         }
-        // OptiFine 作为库出现时（PCL / HMCL 装的实例常见）
         if name.to_ascii_lowercase().contains("optifine") {
             let version = name.rsplit(':').next().filter(|v| !v.is_empty());
             return Some(("OptiFine".to_string(), version.map(str::to_owned)));
         }
     }
+
+    // 第二轮找「家族坐标」——PCL 之类生成的 profile 常常只带周边库
+    // （accesstransformers / eventbus / forgespi / coremods / fmlloader），
+    // 没有 `group:forge:version` 那条主坐标。认得出加载器但拿不到版本号，
+    // 这比认成原版有用得多。
+    const FAMILY: [(&str, &str); 3] = [
+        ("net.neoforged:", "NeoForge"),
+        ("net.minecraftforge:", "Forge"),
+        ("cpw.mods:", "Forge"),
+    ];
+    for lib in libs {
+        let Some(name) = lib.get("name").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        for (prefix, label) in FAMILY {
+            if name.starts_with(prefix) {
+                return Some((label.to_string(), None));
+            }
+        }
+    }
+
     None
 }
 
@@ -290,6 +310,24 @@ mod tests {
         assert_eq!(
             detect_from_libraries(&json),
             Some(("Fabric".to_string(), Some("0.19.5".to_string())))
+        );
+    }
+
+    #[test]
+    fn detects_forge_from_family_libraries_without_main_artifact() {
+        // PCL 生成的 profile 常常只有 Forge 的周边库，没有 `net.minecraftforge:forge:`。
+        let json = serde_json::json!({
+            "id": "DeceasedCraft_Beta",
+            "libraries": [
+                {"name": "net.minecraftforge:accesstransformers:8.0.4"},
+                {"name": "net.minecraftforge:eventbus:6.0.5"},
+                {"name": "net.minecraftforge:forgespi:7.0.1"},
+                {"name": "net.minecraftforge:coremods:5.2.4"}
+            ]
+        });
+        assert_eq!(
+            detect_from_libraries(&json),
+            Some(("Forge".to_string(), None))
         );
     }
 

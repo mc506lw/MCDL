@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::download;
 use crate::error::{Error, Result};
 use crate::install::Installer;
+use crate::isolate;
 use crate::net::HttpClient;
 use crate::paths::GamePaths;
 use crate::types::{
@@ -114,6 +115,12 @@ pub struct PackInstallReport {
     pub loader: Option<String>,
     /// `versions/` 下可以直接用的版本目录名（来自引擎）
     pub installed_version: String,
+    /// 这次模组落在哪（相对 gameDir），例如 `versions/xxx/mods` 或 `mods`
+    #[serde(default)]
+    pub mods_dir: String,
+    /// 这次安装用的是不是版本隔离
+    #[serde(default)]
+    pub isolated: bool,
     pub game_dir: PathBuf,
     /// 这次真正下载的整合包文件数（不含已存在的）
     pub pack_files: usize,
@@ -196,6 +203,7 @@ pub async fn install_pack(
             let manifest = mrpack::read_curse_manifest(&archive)?;
             let mc_version = manifest.minecraft.version.trim().to_string();
             let loader = manifest.loader_spec()?;
+            let override_dirs = vec![manifest.overrides_dir()];
             PackPlan {
                 name: if manifest.name.trim().is_empty() {
                     fallback_name.clone()
@@ -210,7 +218,7 @@ pub async fn install_pack(
                 mc_version,
                 loader,
                 files: PackFiles::Curseforge(manifest),
-                override_dirs: vec![manifest.overrides_dir()],
+                override_dirs,
             }
         }
     };
@@ -252,9 +260,35 @@ pub async fn install_pack(
 
     // ---- 阶段 3：整合包自己的文件 + 覆盖
     begin(sink, 3, "写入整合包文件");
+
+    // 版本隔离的落点：加载器装完才知道 `versions/` 下的最终目录名。
+    let version_id = base.installed_version.clone();
+    let mods = isolate::mods_dir(&req.game_dir, &version_id, req.isolated)?;
+    sink.emit(PackProgress::Log {
+        level: LogLevel::Info,
+        message: if req.isolated {
+            format!(
+                "版本隔离：模组写入 {}（只有 PCL / HMCL 这类启动器会读这个目录）",
+                mods.label()
+            )
+        } else {
+            format!(
+                "版本隔离已关闭：模组写入共享的 {}（多个整合包会混在一起）",
+                mods.label()
+            )
+        },
+    });
+
+    let (jobs, dropped, mut notes) = match &plan.files {
+        PackFiles::Modrinth(index) => mrpack_jobs(index, &req.game_dir, &version_id, req.isolated)?,
+        PackFiles::Curseforge(manifest) => curseforge_jobs(&client, req, manifest, &mods).await?,
+    };
+    skipped += dropped;
+    warnings.append(&mut notes);
+
     let outcome = download::run_batch(
         &client,
-        plan.jobs.clone(),
+        jobs,
         req.concurrency,
         &FilesSink { sink },
         StageKind::Libraries,
@@ -262,7 +296,12 @@ pub async fn install_pack(
     .await?;
 
     let dirs: Vec<&str> = plan.override_dirs.iter().map(String::as_str).collect();
-    let overrides = mrpack::extract_overrides(&archive, &req.game_dir, &dirs)?;
+    let overrides = mrpack::extract_overrides_isolated(
+        &archive,
+        &req.game_dir,
+        &dirs,
+        Some((&version_id, req.isolated)),
+    )?;
 
     let report = PackInstallReport {
         source: req.source,
@@ -272,6 +311,8 @@ pub async fn install_pack(
         mc_version: plan.mc_version.clone(),
         loader: plan.loader.as_ref().map(|l| l.display()),
         installed_version: base.installed_version.clone(),
+        mods_dir: mods.relative.clone(),
+        isolated: mods.isolated,
         game_dir: req.game_dir.clone(),
         pack_files: outcome.downloaded,
         pack_bytes: outcome.bytes,
@@ -389,9 +430,14 @@ async fn fetch_archive(
 ///
 /// 返回 `(任务, 跳过数, 警告)`。跳过的是「客户端不需要」的条目；
 /// 没有下载地址的也跳过，但要给一条警告——静默少装一个模组是最难查的故障。
+///
+/// 落点一律交给 [`isolate::place_pack_file`]：`mods/` 下的条目跟着版本隔离走，
+/// `config/`、`resourcepacks/` 等仍按 PCL 的约定留在游戏根目录。
 fn mrpack_jobs(
     index: &mrpack::ModpackIndex,
     game_dir: &std::path::Path,
+    version_id: &str,
+    isolated: bool,
 ) -> Result<(Vec<DownloadJob>, usize, Vec<String>)> {
     let mut jobs = Vec::new();
     let mut skipped = 0usize;
@@ -407,9 +453,12 @@ fn mrpack_jobs(
             warnings.push(format!("{} 没有下载地址，已跳过", file.path));
             continue;
         };
+        // safe_path 先挡一次穿越；place_pack_file 再挡一次，因为这里才是落盘点。
+        file.safe_path()?;
+        let dest = isolate::place_pack_file(game_dir, version_id, isolated, &file.path)?;
         jobs.push(DownloadJob {
             url: url.to_string(),
-            dest: game_dir.join(file.safe_path()?),
+            dest,
             sha1: file.hashes.sha1.clone(),
             size: file.file_size,
             label: file.path.clone(),
@@ -427,9 +476,9 @@ async fn curseforge_jobs(
     client: &HttpClient,
     req: &PackInstallRequest,
     manifest: &mrpack::CurseManifest,
+    mods_dir: &isolate::ModsTarget,
 ) -> Result<(Vec<DownloadJob>, usize, Vec<String>)> {
     let key = curseforge::require_key(req.api_key.as_deref())?;
-    let mods_dir = req.game_dir.join("mods");
     let mut jobs = Vec::new();
     let mut skipped = 0usize;
     let mut warnings = Vec::new();
@@ -465,7 +514,7 @@ async fn curseforge_jobs(
 
         jobs.push(DownloadJob {
             url: file.url.clone(),
-            dest: mods_dir.join(super::safe_file_name(&file.filename)),
+            dest: mods_dir.join(&super::safe_file_name(&file.filename)),
             sha1: file.sha1.clone(),
             size: Some(file.size).filter(|s| *s > 0),
             label: file.filename.clone(),
@@ -502,7 +551,7 @@ mod tests {
     #[test]
     fn jobs_land_under_the_game_dir_and_keep_hashes() {
         let dir = Path::new("C:/mc");
-        let (jobs, skipped, warnings) = mrpack_jobs(&index(), dir).unwrap();
+        let (jobs, skipped, warnings) = mrpack_jobs(&index(), dir, "1.21.1-fabric", false).unwrap();
 
         assert_eq!(jobs.len(), 1, "只有 sodium 该下");
         assert_eq!(skipped, 2, "客户端不需要的和没地址的都算跳过");
@@ -516,6 +565,43 @@ mod tests {
         assert_eq!(job.label, "mods/sodium.jar");
     }
 
+    /// 版本隔离开着时，整合包里的模组必须落进 `versions/<id>/mods/`，
+    /// 而且 `config/` 这类条目不该跟着跑进去。
+    #[test]
+    fn jobs_follow_version_isolation() {
+        let dir = Path::new("C:/mc");
+        let (jobs, _, _) = mrpack_jobs(&index(), dir, "fabric-loader-0.16.9-1.21.1", true).unwrap();
+        let dest = &jobs[0].dest;
+        assert!(
+            dest.ends_with("versions/fabric-loader-0.16.9-1.21.1/mods/sodium.jar")
+                || dest.ends_with("versions\\fabric-loader-0.16.9-1.21.1\\mods\\sodium.jar"),
+            "实际是 {}",
+            dest.display()
+        );
+        assert!(!dest.starts_with(dir.join("mods")), "不该落到根 mods/");
+
+        // 非 mods 条目留在根目录
+        let mut idx = index();
+        idx.files.push(mrpack::ModpackFile {
+            path: "config/x.toml".into(),
+            downloads: vec!["https://example.invalid/x.toml".into()],
+            ..Default::default()
+        });
+        let (jobs, _, _) = mrpack_jobs(&idx, dir, "1.21.1", true).unwrap();
+        let config = jobs.iter().find(|j| j.label == "config/x.toml").unwrap();
+        assert!(config.dest.ends_with("config/x.toml") || config.dest.ends_with("config\\x.toml"));
+        assert!(!config.dest.to_string_lossy().contains("versions"));
+    }
+
+    /// 隔离开着但没有版本目录名：宁可报错，也不能悄悄写进根 mods/。
+    #[test]
+    fn isolated_jobs_refuse_to_guess_the_version_dir() {
+        let dir = Path::new("C:/mc");
+        assert!(mrpack_jobs(&index(), dir, "", true).is_err());
+        // 关掉隔离时版本名无所谓
+        assert!(mrpack_jobs(&index(), dir, "", false).is_ok());
+    }
+
     #[test]
     fn jobs_reject_traversal_before_downloading() {
         // parse_index 已经拦过一次；这里再拦一次，因为 jobs 是真正落盘的地方。
@@ -527,7 +613,8 @@ mod tests {
             }],
             ..Default::default()
         };
-        assert!(mrpack_jobs(&bad, Path::new("C:/mc")).is_err());
+        assert!(mrpack_jobs(&bad, Path::new("C:/mc"), "1.21.1", false).is_err());
+        assert!(mrpack_jobs(&bad, Path::new("C:/mc"), "1.21.1", true).is_err());
     }
 
     #[test]
@@ -635,7 +722,7 @@ mod tests {
                 .unwrap_or_else(|| "原版".into())
         );
 
-        let (jobs, skipped, warnings) = mrpack_jobs(&index, &dir).unwrap();
+        let (jobs, skipped, warnings) = mrpack_jobs(&index, &dir, "1.21.1", false).unwrap();
         println!(
             "下载任务 {} 个 · 跳过 {} 个 · 警告 {} 条 {:?}",
             jobs.len(),

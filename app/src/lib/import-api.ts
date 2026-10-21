@@ -7,6 +7,7 @@
 // 字段名照 `crates/mcdl-core/src/import.rs` 的 serde 输出写（snake_case）。
 
 import { IS_TAURI } from './api';
+import { loadSettings } from './settings';
 import type { LogLevel } from './types';
 
 // ---------------------------------------------------------------- 协议
@@ -103,6 +104,8 @@ export interface ImportRequest {
   overwrite: boolean;
   /** 同盘硬链代替复制。默认 false：复制更安全 */
   hardlink: boolean;
+  /** 版本隔离：导入的 mods 进 `versions/<版本id>/mods/`（默认开）还是根 `mods/` */
+  isolated?: boolean;
 }
 
 export interface ImportReport {
@@ -151,6 +154,8 @@ export function makeImportRequest(
     include_saves: false,
     overwrite: false,
     hardlink: false,
+    // 版本隔离是全局设置：导入的 mods 跟着版本进 versions/<id>/mods/。
+    isolated: loadSettings().isolated,
   };
 }
 

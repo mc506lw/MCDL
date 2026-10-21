@@ -353,7 +353,28 @@ pub fn parse_curse_manifest(raw: &[u8]) -> Result<CurseManifest> {
 /// - 已存在的文件会被覆盖：整合包作者改过的配置就该覆盖掉旧的。
 ///
 /// 返回写入的文件数。
+///
+/// 不关心版本隔离的调用方用它；要隔离就用 [`extract_overrides_isolated`]。
 pub fn extract_overrides(archive: &Path, game_dir: &Path, dirs: &[&str]) -> Result<usize> {
+    extract_overrides_isolated(archive, game_dir, dirs, None)
+}
+
+/// 同 [`extract_overrides`]，但 `overrides/mods/**` 可以跟着版本隔离走。
+///
+/// `isolation = Some((版本目录名, 是否隔离))` 时，逐条落点交给
+/// [`crate::isolate::place_pack_file`]：`mods/` 下的条目进
+/// `versions/<id>/mods/`，其余（`config/`、`resourcepacks/`、`saves/`…）
+/// 仍按 PCL 的约定留在游戏根目录。
+///
+/// 为什么 mods 必须一起走：整合包常把「改过的模组」放在 overrides 里，
+/// 主模组进隔离目录而覆盖模组留在根目录，会造成一半一半的加载结果，
+/// 比完全不隔离更难排查。
+pub fn extract_overrides_isolated(
+    archive: &Path,
+    game_dir: &Path,
+    dirs: &[&str],
+    isolation: Option<(&str, bool)>,
+) -> Result<usize> {
     let file = std::fs::File::open(archive).at(archive)?;
     let mut zip = zip::ZipArchive::new(file)
         .map_err(|e| Error::other(format!("打不开整合包压缩包（{}）：{e}", archive.display())))?;
@@ -400,7 +421,20 @@ pub fn extract_overrides(archive: &Path, game_dir: &Path, dirs: &[&str]) -> Resu
             }
         };
 
-        let out = game_dir.join(&rel);
+        // 落点：隔离开着时 mods/ 走版本目录，其余照旧。place_pack_file 会再挡一次穿越。
+        let out = match isolation {
+            Some((version_id, isolated)) => {
+                match crate::isolate::place_pack_file(game_dir, version_id, isolated, &relative) {
+                    Ok(path) => path,
+                    Err(e) => {
+                        tracing::warn!(entry = %name, error = %e, "覆盖文件落点算不出来，跳过");
+                        skipped += 1;
+                        continue;
+                    }
+                }
+            }
+            None => game_dir.join(&rel),
+        };
         if let Some(parent) = out.parent() {
             std::fs::create_dir_all(parent).at(parent)?;
         }
@@ -413,6 +447,7 @@ pub fn extract_overrides(archive: &Path, game_dir: &Path, dirs: &[&str]) -> Resu
         archive = %archive.display(),
         written,
         skipped,
+        isolated = isolation.map(|(_, on)| on).unwrap_or(false),
         "整合包覆盖文件已解压"
     );
     Ok(written)

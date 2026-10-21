@@ -8,8 +8,12 @@
 //!   比在安装主流程里静默吞掉要好。
 //!
 //! [`apply`] 固定了执行顺序：先改名（改完版本目录名才是最终结果），再补
-//! Fabric API 与 OptiFine（它们只动 `<gameDir>/mods/`）。每一项互相独立，
+//! Fabric API 与 OptiFine（它们只往模组目录里放文件）。每一项互相独立，
 //! 一项失败只影响它自己，报告里逐条写清状态与原因。
+//!
+//! 模组目录不是写死的 `<gameDir>/mods/`：由版本隔离开关决定，算法只有
+//! [`crate::isolate::mods_dir`] 一份。改名排在补模组之前，正是因为隔离后的
+//! 落点要用改名后的版本目录名。
 
 use std::path::PathBuf;
 
@@ -95,6 +99,11 @@ pub struct ExtrasRequest {
     /// 自定义版本名；空或 None 表示不改
     #[serde(default)]
     pub rename_to: Option<String>,
+    /// 版本隔离：模组写进 `versions/<版本id>/mods/`（开，默认）还是根 `mods/`（关）。
+    ///
+    /// 版本 id 用的是**改名之后**的目录名（[`apply`] 里先改名，再补模组）。
+    #[serde(default = "crate::isolate::default_on")]
+    pub isolated: bool,
 }
 
 /// 一次「补齐附加项」的结果。
@@ -195,8 +204,18 @@ pub async fn apply(client: &HttpClient, req: &ExtrasRequest) -> ExtrasReport {
     }
 
     // 2. Fabric API / QFAPI
+    //
+    // 落点跟着版本隔离走，版本 id 用改名之后的最终目录名（`report.version_id`）。
     if req.fabric_api {
-        let outcome = fabric_api::install(client, &paths, req.loader, &req.mc_version).await;
+        let outcome = fabric_api::install(
+            client,
+            &paths,
+            req.loader,
+            &req.mc_version,
+            &report.version_id,
+            req.isolated,
+        )
+        .await;
         report.notices.push(ExtraNotice::new(
             "fabric_api",
             outcome.status,
@@ -207,7 +226,15 @@ pub async fn apply(client: &HttpClient, req: &ExtrasRequest) -> ExtrasReport {
 
     // 3. OptiFine
     if req.optifine {
-        let outcome = optifine::install(client, &paths, req.loader, &req.mc_version).await;
+        let outcome = optifine::install(
+            client,
+            &paths,
+            req.loader,
+            &req.mc_version,
+            &report.version_id,
+            req.isolated,
+        )
+        .await;
         report.notices.push(ExtraNotice::new(
             "optifine",
             outcome.status,
@@ -247,6 +274,7 @@ mod tests {
             fabric_api: false,
             optifine: false,
             rename_to: None,
+            isolated: true,
         };
         let report = apply(&client, &req).await;
         assert!(report.notices.is_empty());
@@ -278,6 +306,7 @@ mod tests {
             fabric_api: true, // 原版：Fabric API 那一步会跳过，不会联网
             optifine: false,
             rename_to: Some("我的世界".into()),
+            isolated: true,
         };
         let report = apply(&client, &req).await;
         assert_eq!(report.version_id, "我的世界");
@@ -289,5 +318,21 @@ mod tests {
         assert_eq!(report.notices[1].item, "fabric_api");
         assert_eq!(report.notices[1].status, ExtraStatus::Skipped);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 协议：界面没传 `isolated` 时默认**开**（和设置页的默认值一致）。
+    #[test]
+    fn request_defaults_to_isolation_on() {
+        let req: ExtrasRequest = serde_json::from_str(
+            r#"{"game_dir":"C:/mc","mc_version":"1.21.1","fabric_api":false,"optifine":false}"#,
+        )
+        .unwrap();
+        assert!(req.isolated, "没传字段时必须是隔离的");
+
+        let req: ExtrasRequest = serde_json::from_str(
+            r#"{"game_dir":"C:/mc","mc_version":"1.21.1","fabric_api":false,"optifine":false,"isolated":false}"#,
+        )
+        .unwrap();
+        assert!(!req.isolated, "显式关掉必须尊重");
     }
 }

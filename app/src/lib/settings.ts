@@ -14,6 +14,13 @@ export interface Settings {
   javaPath: string;
   /** 只装能启动的最小集合 */
   skipAssets: boolean;
+  /**
+   * 版本隔离：模组写进 `versions/<版本id>/mods/`（开，默认）还是根 `mods/`（关）。
+   *
+   * 只有 PCL / HMCL 这类支持版本隔离的启动器读得到隔离目录；官方启动器只读根
+   * `mods/`。落点规则见 `lib/isolate.ts`（引擎侧同规则）。
+   */
+  isolated: boolean;
 }
 
 const KEY = 'mcdl.settings';
@@ -24,6 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   dirs: [],
   javaPath: '',
   skipAssets: false,
+  // 默认开：用户要的是「同目录装第二个整合包不能混」。
+  isolated: true,
 };
 
 export function loadSettings(): Settings {
@@ -39,6 +48,9 @@ export function loadSettings(): Settings {
         : [],
       javaPath: typeof parsed.javaPath === 'string' ? parsed.javaPath : '',
       skipAssets: Boolean(parsed.skipAssets),
+      // 老版本存下来的设置里没有这个字段：缺失一律当「开」，
+      // 不能让升级把用户已有的隔离悄悄关掉。
+      isolated: parsed.isolated === undefined ? true : Boolean(parsed.isolated),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

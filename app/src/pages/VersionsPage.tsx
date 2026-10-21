@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, IS_TAURI } from '../lib/api';
 import { DirPicker } from '../components/DirPicker';
 import { formatBytes, formatDate } from '../lib/format';
+import { ISOLATION_NOTICE, modsDir, modsLabel } from '../lib/isolate';
+import { loadSettings } from '../lib/settings';
 import type { InstalledVersion } from '../lib/types';
 
 interface Props {
@@ -22,6 +24,20 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+
+  // 版本隔离是全局设置：这里只**显示**它把模组放在哪，不提供自动迁移
+  // （把根 mods/ 里属于某个版本的模组猜出来再搬走，误伤概率太高）。
+  const [isolated] = useState(() => loadSettings().isolated);
+
+  /** 某个版本的模组落点；名字异常时返回 null，界面就不显示这一行。 */
+  function modsTargetOf(id: string): string | null {
+    if (!gameDir) return null;
+    try {
+      return modsLabel(modsDir(gameDir, id, isolated));
+    } catch {
+      return null;
+    }
+  }
 
   const reload = useCallback(() => {
     if (!gameDir) {
@@ -102,11 +118,15 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
                 <div className="version-main">
                   <span className="version-id">{v.id}</span>
                   <span className="ef-chip">{v.loader ?? '原版'}</span>
+                  <span className="ef-chip" title={ISOLATION_NOTICE}>
+                    {isolated ? '隔离' : '共享'}
+                  </span>
                   <span className="version-meta">
                     {v.kind} │ {v.files} 个文件 │ {formatBytes(v.bytes)} │{' '}
                     {v.modified
                       ? formatDate(new Date(v.modified * 1000).toISOString())
                       : '—'}
+                    {modsTargetOf(v.id) && <> │ 模组 {modsTargetOf(v.id)}</>}
                   </span>
                 </div>
 
@@ -150,6 +170,47 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
             浏览器预览用的是演示数据；装成桌面应用后这里显示真实磁盘内容。
           </p>
         )}
+      </section>
+
+      <section className="ef-panel">
+        <h2>
+          版本隔离 <small>{isolated ? '开' : '关'}</small>
+        </h2>
+
+        <p className="ef-notice" data-flag="给谁用">
+          {ISOLATION_NOTICE}
+        </p>
+
+        <p className="ef-lede ef-read">
+          当前设置下，新装的模组会写进{' '}
+          <code>{isolated ? 'versions/<版本id>/mods/' : 'mods/'}</code>
+          {isolated
+            ? '。每个版本一份，同目录装第二个整合包不会混。'
+            : '。所有版本共用同一份，装第二个整合包会和第一个混在一起。'}
+        </p>
+
+        <p className="ef-lede ef-read">
+          这里不提供「把某个版本改成隔离」的自动迁移：根 <code>mods/</code>{' '}
+          里的文件属于哪个版本只能靠猜，搬错会静默弄坏别的实例。要换落点，重新装一次那个
+          整合包，或者按下面手动搬。
+        </p>
+
+        <ul className="ef-ledger">
+          <li>
+            <span>手动迁移（推荐用支持隔离的启动器操作）</span>
+            <span className="path">
+              根 mods/ 里该版本专属的 jar → versions/&lt;版本id&gt;/mods/
+            </span>
+          </li>
+          <li>
+            <span>隔离后的模组谁能读</span>
+            <span>PCL / HMCL 等支持版本隔离的启动器</span>
+          </li>
+          <li>
+            <span>官方启动器</span>
+            <span>只读根目录的 mods/</span>
+          </li>
+        </ul>
       </section>
 
       <section className="ef-panel">
