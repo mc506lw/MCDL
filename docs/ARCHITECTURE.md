@@ -129,6 +129,19 @@ pub enum Progress {
 - `required_major`：≤1.16.5 → 8；1.17–1.20.4 → 17；1.20.5–1.21.x → 21；26.x 以 JSON 为准
 - `ensure`：Adoptium API `api.adoptium.net/v3/assets/latest/{major}/hotspot`，下载后解压到 `<gameDir>/runtime/jre-<major>`（每个主版本一份，1.12 与 1.21 可以共存）
 
+### isolate
+
+- `mods_dir(game_dir, version_id, isolated)`：**唯一**的模组落点算法。
+  开 → `<gameDir>/versions/<版本id>/mods/`；关 → `<gameDir>/mods/`
+- `validate_version_id`：版本目录名必须是一层普通目录名；`/`、`\`、盘符、控制字符、
+  `.`、`..` 一律拒绝（隔离目录是拼路径的地方，不能信磁盘上的名字）
+- `place_pack_file`：整合包索引里的相对路径 → 绝对路径；只有 `mods/**` 走隔离，
+  `config/`、`resourcepacks/` 等留在根目录；再挡一次穿越
+- 调用点：`pack/install.rs`（Modrinth / CurseForge 两种）、
+  `pack/mrpack.rs::extract_overrides_isolated`、`extras/fabric_api.rs`、
+  `extras/optifine.rs`、`import.rs`。前端镜像 `app/src/lib/isolate.ts`
+- 隔离是**启动期**语义，引擎只负责把文件放对位置；细节见 [ISOLATION.md](ISOLATION.md)
+
 ## 测试要求
 
 - `meta`：`rules` 求值的表驱动单测（各 OS × arch × features）

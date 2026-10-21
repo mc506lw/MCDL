@@ -13,7 +13,8 @@
 //!
 //! - **Forge + 1.13 及以后**：OptiFine 的官方 jar 本身就是 Forge mod
 //!   （内含 `META-INF/mods.toml`，`modLoader="javafml"`、`modId="optifine"`），
-//!   直接放进 `<gameDir>/mods/` 就能被 Forge 加载。这一步会真的下载并校验。
+//!   直接放进模组目录就能被 Forge 加载（隔离开时是 `versions/<id>/mods/`）。
+//!   这一步会真的下载并校验。
 //! - **原版 / Forge + 1.12 及更早**：需要 patch 原版 jar 并生成版本 JSON，
 //!   本工具不自动做；只提供「下载官方安装器 → 用户自己点 Install」。
 //! - **Fabric / Quilt / NeoForge**：OptiFine 不能直接加载（Fabric 系要第三方

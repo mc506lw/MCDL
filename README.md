@@ -25,6 +25,8 @@
 - **Java 运行时** —— 本机没有合适的版本时，从 Adoptium 取一份 JRE 放进游戏目录
 - **安装前预估** —— 点开始之前就告诉你这次要下多少文件、多少字节、用哪个 Java
 - **版本管理** —— 扫描磁盘列出已装版本，可单独删除；只删自己的目录，共享的库不动
+- **版本隔离** —— 模组装进 `versions/<版本id>/mods/`（默认开），同目录装第二个整合包不会混；
+  隔离目录只有 PCL / HMCL 这类支持隔离的启动器读得到，官方启动器请关掉开关
 - **多目录** —— 常用的 `.minecraft` 目录可以收藏、切换
 - **命令行与图形界面共用一个引擎** —— 单文件 CLI 3.96 MiB，没有 GUI 也能装
 
@@ -153,6 +155,7 @@ crates/mcdl-core     引擎（无 UI 依赖）
   loader/            Fabric / Quilt / Forge / NeoForge
   java/              运行时探测、版本推断、Adoptium 获取
   installed.rs       已装版本的扫描与删除
+  isolate.rs         版本隔离：模组落点（versions/<id>/mods 还是根 mods）
   install.rs         编排层（唯一入口）
 crates/mcdl-cli      命令行
 app/                 Tauri 2 + React 界面
