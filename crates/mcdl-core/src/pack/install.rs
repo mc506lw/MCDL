@@ -67,6 +67,12 @@ pub struct PackInstallRequest {
     /// 跳过资源文件
     #[serde(default)]
     pub skip_assets: bool,
+    /// 版本隔离：模组写进 `versions/<版本id>/mods/`（开，默认）还是根 `mods/`（关）。
+    ///
+    /// 落点只有 [`crate::isolate::mods_dir`] 一处算法。版本 id 要等加载器装完才知道，
+    /// 所以这个开关在**阶段 3**（写整合包文件）才真正生效。
+    #[serde(default = "crate::isolate::default_on")]
+    pub isolated: bool,
 }
 
 impl PackInstallRequest {
@@ -86,6 +92,7 @@ impl PackInstallRequest {
             concurrency: super::default_concurrency(),
             java: None,
             skip_assets: false,
+            isolated: true,
         }
     }
 }
@@ -154,14 +161,15 @@ pub async fn install_pack(
     let (version, archive) = fetch_archive(&client, req, &paths, sink).await?;
 
     // ---- 读索引：依赖 + 文件清单
+    //
+    // 这里**不**拼下载任务：模组落点取决于版本隔离，而隔离目录里的版本 id
+    // 要等加载器装完才知道（`fabric-loader-0.16.9-1.21.1` 这种）。所以先只把
+    // 索引留在 `files` 里，阶段 3 再算落点、再拼任务。
     let plan = match req.source {
         PackSource::Modrinth => {
             let index = mrpack::read_index(&archive)?;
             let mc_version = index.mc_version()?;
             let loader = index.loader_spec()?;
-            let (jobs, dropped, mut notes) = mrpack_jobs(&index, &req.game_dir)?;
-            skipped += dropped;
-            warnings.append(&mut notes);
             let name = if index.name.trim().is_empty() {
                 fallback_name.clone()
             } else {
@@ -177,7 +185,7 @@ pub async fn install_pack(
                 version: version_text,
                 mc_version,
                 loader,
-                jobs,
+                files: PackFiles::Modrinth(index),
                 override_dirs: mrpack::default_override_dirs()
                     .into_iter()
                     .map(str::to_string)
@@ -188,9 +196,6 @@ pub async fn install_pack(
             let manifest = mrpack::read_curse_manifest(&archive)?;
             let mc_version = manifest.minecraft.version.trim().to_string();
             let loader = manifest.loader_spec()?;
-            let (jobs, dropped, mut notes) = curseforge_jobs(&client, req, &manifest).await?;
-            skipped += dropped;
-            warnings.append(&mut notes);
             PackPlan {
                 name: if manifest.name.trim().is_empty() {
                     fallback_name.clone()
@@ -204,7 +209,7 @@ pub async fn install_pack(
                 },
                 mc_version,
                 loader,
-                jobs,
+                files: PackFiles::Curseforge(manifest),
                 override_dirs: vec![manifest.overrides_dir()],
             }
         }
@@ -299,8 +304,15 @@ struct PackPlan {
     version: String,
     mc_version: String,
     loader: Option<LoaderSpec>,
-    jobs: Vec<DownloadJob>,
+    /// 原始文件清单。拼下载任务要等版本目录名确定（版本隔离的落点要用它）。
+    files: PackFiles,
     override_dirs: Vec<String>,
+}
+
+/// 整合包自带的文件清单，两种平台格式各一份。
+enum PackFiles {
+    Modrinth(mrpack::ModpackIndex),
+    Curseforge(mrpack::CurseManifest),
 }
 
 fn begin(sink: &dyn PackProgressSink, index: usize, label: &str) {

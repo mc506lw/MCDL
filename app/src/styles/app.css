@@ -889,6 +889,12 @@ body.ef {
 .version-main {
   display: grid;
   gap: 0.2rem;
+  justify-items: start;
+}
+
+/* 加载器标签按内容宽度，不跟着网格拉满整行 */
+.version-main .ef-chip {
+  justify-self: start;
 }
 
 .version-main .version-id {

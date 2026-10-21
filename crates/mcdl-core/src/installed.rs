@@ -68,12 +68,7 @@ pub fn list(game_dir: &Path) -> Result<Vec<InstalledVersion>> {
         out.push(InstalledVersion {
             kind: str_of(&json, "type").unwrap_or_default(),
             main_class: str_of(&json, "mainClass").unwrap_or_default(),
-            loader: detect_from_libraries(&json)
-                .map(|(name, ver)| match ver {
-                    Some(v) => format!("{name} {v}"),
-                    None => name,
-                })
-                .or_else(|| detect_loader(&id, &json)),
+            loader: detect_loader_deep(&versions_dir, &id, 5).or_else(|| detect_loader(&id, &json)),
             id,
             bytes,
             files,
@@ -160,6 +155,32 @@ fn detect_from_libraries(json: &serde_json::Value) -> Option<(String, Option<Str
         }
     }
     None
+}
+
+/// 沿 `inheritsFrom` 往上找加载器。
+///
+/// 整合包版本（以及 PCL 装的实例）通常只在自己的 JSON 里写
+/// `inheritsFrom: "1.20.1-Forge_47.2.0"`，**加载器坐标在父版本里**。
+/// 只看自己那一层的 libraries，就会把 Forge/Fabric 的整合包认成原版。
+fn detect_loader_deep(versions_dir: &Path, id: &str, depth: usize) -> Option<String> {
+    if depth == 0 {
+        return None;
+    }
+    let dir = versions_dir.join(id);
+    let json_path = find_version_json(&dir, id)?;
+    let raw = std::fs::read(&json_path).ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+
+    if let Some((name, ver)) = detect_from_libraries(&json) {
+        return Some(match ver {
+            Some(v) => format!("{name} {v}"),
+            None => name,
+        });
+    }
+
+    // 自己这层没有，就去父版本里找
+    let parent = json.get("inheritsFrom").and_then(|v| v.as_str())?;
+    detect_loader_deep(versions_dir, parent, depth - 1)
 }
 
 /// 兜底：从目录名和 `mainClass` 里猜。
@@ -270,6 +291,31 @@ mod tests {
             detect_from_libraries(&json),
             Some(("Fabric".to_string(), Some("0.19.5".to_string())))
         );
+    }
+
+    #[test]
+    fn follows_inherits_from_to_find_loader() {
+        // 整合包版本自己那层通常只有 inheritsFrom，加载器坐标在父版本里。
+        let root = std::env::temp_dir().join(format!("mcdl-inst-{}", std::process::id()));
+        let versions = root.join("versions");
+        std::fs::create_dir_all(versions.join("pack")).unwrap();
+        std::fs::create_dir_all(versions.join("1.20.1-Forge_47.2.0")).unwrap();
+        std::fs::write(
+            versions.join("pack/pack.json"),
+            r#"{"id":"pack","inheritsFrom":"1.20.1-Forge_47.2.0","libraries":[]}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            versions.join("1.20.1-Forge_47.2.0/1.20.1-Forge_47.2.0.json"),
+            r#"{"id":"1.20.1-Forge_47.2.0","libraries":[{"name":"net.minecraftforge:forge:47.2.0"}]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            detect_loader_deep(&versions, "pack", 5).as_deref(),
+            Some("Forge 47.2.0")
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
