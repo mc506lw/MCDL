@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { api, IS_TAURI } from './api';
+import { T } from '../i18n';
 import type { InstalledVersion, LoaderKind } from './types';
 
 // ---------------------------------------------------------------- 协议类型
@@ -201,24 +202,24 @@ const FORBIDDEN = new Set(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
 
 export function localNameCheck(raw: string): NameCheck {
   const name = raw;
-  if (!name) return { ok: false, reason: '版本名不能为空' };
-  if (name.trim() !== name) return { ok: false, reason: '版本名前后不能有空格' };
+  if (!name) return { ok: false, reason: T.extras.nameEmpty };
+  if (name.trim() !== name) return { ok: false, reason: T.extras.nameSpaces };
   if ([...name].length > MAX_NAME_CHARS) {
-    return { ok: false, reason: `版本名最多 ${MAX_NAME_CHARS} 个字符` };
+    return { ok: false, reason: T.extras.nameTooLong(MAX_NAME_CHARS) };
   }
-  if (name === '.' || name === '..') return { ok: false, reason: '版本名不能是 . 或 ..' };
+  if (name === '.' || name === '..') return { ok: false, reason: T.extras.nameDot };
   for (const ch of name) {
     if (FORBIDDEN.has(ch) || ch.charCodeAt(0) < 0x20) {
       return {
         ok: false,
-        reason: `版本名里不能有 \`${ch}\`（不能含 / \\ : * ? " < > | 和控制字符）`,
+        reason: T.extras.nameForbidden(ch),
       };
     }
   }
-  if (name.endsWith('.')) return { ok: false, reason: '版本名不能以点结尾' };
+  if (name.endsWith('.')) return { ok: false, reason: T.extras.nameTrailingDot };
   const stem = name.split('.')[0].toUpperCase();
   if (['CON', 'PRN', 'AUX', 'NUL'].includes(stem) || /^(COM|LPT)[1-9]$/.test(stem)) {
-    return { ok: false, reason: `\`${name}\` 是 Windows 的保留设备名，换一个` };
+    return { ok: false, reason: T.extras.nameReserved(name) };
   }
   return { ok: true };
 }
@@ -385,7 +386,7 @@ export async function runExtrasAfterInstall(args: RunExtrasArgs): Promise<void> 
         setExtrasState({
           phase: 'failed',
           error:
-            '这次安装没有产出可用的版本目录（可能失败了，或者被取消），附加项已跳过。',
+            T.extras.skippedNoVersion,
         });
         return;
       }
@@ -447,8 +448,8 @@ function mockSupport(loader: LoaderKind | null, mcVersion: string): OptifinePlan
       mode: 'unsupported',
       reason:
         loader === 'neoforge'
-          ? 'OptiFine 不支持 NeoForge'
-          : 'OptiFine 不能直接由 Fabric/Quilt 加载，需要第三方兼容层；本工具不自动装',
+          ? T.extras.optifineNoNeoForge
+          : T.extras.optifineNoFabric,
       build: null,
       download_page: build.download_page,
       manual_possible: false,
@@ -459,8 +460,8 @@ function mockSupport(loader: LoaderKind | null, mcVersion: string): OptifinePlan
     supported: modern,
     mode: modern ? 'mods_folder' : 'manual',
     reason: modern
-      ? 'Forge 已装：OptiFine 的官方 jar 本身就是 Forge mod，放进 mods/ 即可加载'
-      : '原版需要 OptiFine 官方安装器 patch 游戏；可以下载后手动点 Install',
+      ? T.extras.optifineForgeReady
+      : T.extras.optifineVanillaManual,
     build,
     download_page: build.download_page,
     manual_possible: true,
@@ -585,15 +586,15 @@ function demoVersionName(mcVersion: string, loader: LoaderKind | null): string {
 
 /** 给界面显示用：附加项名字。 */
 export const EXTRA_LABEL: Record<string, string> = {
-  fabric_api: 'Fabric API',
-  optifine: 'OptiFine',
-  rename: '版本名',
+  fabric_api: T.extras.labelFabricApi,
+  optifine: T.extras.labelOptifine,
+  rename: T.extras.labelRename,
 };
 
 /** 给界面显示用：状态短标签。 */
 export const EXTRA_STATUS_LABEL: Record<ExtraStatus, string> = {
-  done: '已完成',
-  skipped: '已跳过',
-  failed: '失败',
-  manual: '需要手动完成',
+  done: T.extras.statusDone,
+  skipped: T.extras.statusSkipped,
+  failed: T.extras.statusFailed,
+  manual: T.extras.statusManual,
 };

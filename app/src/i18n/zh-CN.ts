@@ -1,233 +1,596 @@
-// 界面文案。**所有面向用户的文字都应该在这里改**，组件里不写死中文。
+// 界面文案。**所有面向用户的文字都在这里改**，组件里不写死中文。
 //
-// 结构按页面/组件分组，键名 `sN` 是抽取时按行号顺序编的号——它只保证稳定，
-// 不表达语义。改文案时只改右边的值；想改成语义键名（`title` / `lede`）也可以，
-// 但组件里的引用要跟着改。
+// 结构按页面/组件分组，键名是语义名（`versionLabel` 而不是 `s12`）：
+// 改文案只动右边的值；改键名要同步改组件里的引用，编译期会报错。
 //
-// 骨架由 scripts/extract-i18n.py 生成，之后手工维护。
+// 带变量的写成函数，调用方传值：`T.QueuePanel.files(12)`。
+// 跨组件复用的短词放 `common`，不要每个页面各写一份。
+//
+// 写法约定见 `docs/COPY.md`。参照 HMCL 与 Modrinth App 的线上中文文案：
+// 按钮 2–4 字、空状态「无 X」、失败「无法 X」/「X 失败」、说明只讲影响，
+// 不自我介绍、不写「请注意」、不用感叹号。
 
 export const zhCN = {
+  // ---- 命令栏分区（lib/nav.ts） ----
+  nav: {
+    install: '安装',
+    versions: '版本',
+    packs: '整合包',
+    import: '导入',
+    logs: '日志',
+    settings: '设置',
+  },
+
+  // ---- 跨组件复用的短词 ----
+  common: {
+    vanilla: '原版',
+    status: '状态',
+    cancel: '取消',
+    statusRunning: '安装中',
+    statusDone: '完成',
+    statusFailed: '失败',
+    statusCancelled: '已取消',
+    preparing: '准备中',
+    on: '开',
+    off: '关',
+    gameDir: '游戏目录',
+    dirUnset: '未指定',
+    openDir: '打开目录',
+    manageDirs: '管理目录',
+    elapsed: '已用时',
+    none: '无',
+    isolated: '隔离',
+    shared: '共享',
+    demoData: '演示数据',
+    retry: '重试',
+    stageLine: (index: string, total: string, label: string) => `${index} / ${total} · ${label}`,
+    isolationNotice:
+      '隔离后的模组只有 PCL / HMCL 这类启动器读得到。官方启动器只读根目录 mods/。',
+    isolationOn: '模组进每个版本自己的 mods/',
+    isolationOff: '模组进根目录 mods/，所有版本共用',
+  },
+
   // ---- components/CommandBar.tsx ----
   CommandBar: {
-    s1: 'Minecraft 安装器', // L33
-    s2: '分区', // L37
-    s3: '预览模式：内置演示队列', // L56
-    s4: '窗口', // L79
-    s5: '最小化', // L80
-    s6: '最大化', // L83
-    s7: '关闭', // L86
+    subtitle: 'Minecraft 安装器',
+    navLabel: '分区',
+    demoBadge: '预览',
+    demoTitle: '预览模式：进度是演示数据',
+    groupLabel: 'QQ 群',
+    groupTitle: 'QQ 群 810329264',
+    themeToggle: '切换深浅',
+    windowLabel: '窗口',
+    minimize: '最小化',
+    maximize: '最大化',
+    close: '关闭',
   },
 
   // ---- components/InstallForm.tsx ----
   InstallForm: {
-    s1: '请求超过 10 秒没有返回', // L74
-    s2: '选择 .minecraft 所在目录', // L160
-    s3: '打开目录选择器失败：${e instanceof Error ? e.message : String(e)}', // L164
-    s4: '未选择版本。清单加载后会自动填入最新正式版。', // L171
-    s5: '请选择游戏目录，或点「默认目录」使用系统 .minecraft。', // L175
-    s6: '版本', // L201
-    s7: '正在拉取版本清单', // L217
-    s8: '清单没拉到', // L238
-    s9: '加载器', // L247
-    s10: '不安装加载器（原版）', // L257
-    s11: '加载器版本', // L266
-    s12: '正在获取加载器版本', // L268
-    s13: '取不到版本', // L271
-    s14: '最新版', // L278
-    s15: '最新版（默认）', // L290
-    s16: '最多显示 20 个版本，从新到旧。选「最新版」即可。', // L299
-    s17: '下载源', // L304
-    s18: '下载源', // L305
-    s19: '官方源', // L314
-    s20: 'BMCLAPI 第三方镜像', // L324
-    s21: '默认使用官方源；镜像仅用于加速，需手动开启。', // L329
-    s22: '镜像仅用于依赖库、资源文件和游戏本体；版本清单与版本 JSON 仍走官方。', // L330
-    s23: '第三方镜像', // L335
-    s24: '游戏目录', // L341
-    s25: '.minecraft 所在目录', // L347
-    s26: '版本、依赖库、资源文件都装在这里。', // L376
-    s27: '正在估算这次要下多少…', // L380
-    s28: '（本机已有）', // L385
-    s29: '（需要下载）', // L385
-    s30: '选择版本和目录后显示预计下载量。', // L388
-    s31: '只装最小集合', // L393
-    s32: '跳过资源文件。游戏可启动，但会缺少音效和语言文件。', // L394
-    s33: '自动探测', // L407
-    s34: '还差一步', // L414
-    s35: '安装中', // L426
-    s36: '开始安装', // L426
+    latestRelease: '最新正式版',
+    versionLabel: '版本',
+    versionTypeLabel: '版本类型',
+    filterRelease: '正式版',
+    filterAll: '全部（含测试版）',
+    versionsLoading: '正在拉取版本清单',
+    versionFieldLabel: 'Minecraft 版本',
+    snapshotBadge: '测试版',
+    snapshotNote: '快照版，安装方式与正式版相同。',
+    versionsErrorFlag: '加载失败',
+    noVersion: '还没有选择版本。',
+    noGameDir: '还没有选择游戏目录。',
+    loaderLabel: '加载器',
+    loaderNone: '不装加载器（原版）',
+    loaderVersionLabel: '加载器版本',
+    loaderLoading: '正在获取加载器版本',
+    loaderErrorFlag: '获取失败',
+    loaderErrorNote: '无法获取版本列表，使用最新版。',
+    loaderTimeout: '请求超时。',
+    loaderVersionPlaceholder: '最新版',
+    loaderLatest: '最新版',
+    loaderHint: '最多 20 个版本。',
+    sourceLabel: '下载源',
+    sourceOfficial: '官方源',
+    sourceMirror: 'BMCLAPI 镜像',
+    sourceHintOfficial: '从 Mojang 官方下载。',
+    sourceHintMirror: '仅加速依赖库、资源和本体。',
+    sourceMirrorFlag: '第三方镜像',
+    sourceMirrorNote: '社区镜像，非 Mojang 官方。',
+    dirLabel: '游戏目录',
+    dirHint: '版本、依赖库、资源都在这里。',
+    previewEstimating: '正在估算……',
+    preview: (p: {
+      files: string;
+      bytes: string;
+      libraries: number;
+      assets: number;
+      javaMajor: number;
+      javaLocal: boolean;
+    }) =>
+      `预计 ${p.files} 个文件 │ ${p.bytes} │ 依赖库 ${p.libraries} │ 资源 ${p.assets} │ Java ${p.javaMajor}（${
+        p.javaLocal ? '已有' : '需下载'
+      }）`,
+    previewEmpty: '选择版本后显示下载量。',
+    skipAssetsLabel: '跳过资源文件',
+    skipAssetsHint: '游戏能启动，但没有音效和语言文件。',
+    footerConcurrency: (n: number) => `并发 ${n}`,
+    footerJavaAuto: '自动探测',
+    footerEdit: '在设置里改',
+    errorFlag: '还差一步',
+    submit: '开始安装',
+    submitRunning: '安装中',
   },
 
   // ---- components/Readout.tsx ----
   Readout: {
-    s1: '原版', // L42
-    s2: '未指定目录', // L45
-    s3: '下载速度', // L52
-    s4: '${speed.unit} 下载速度', // L52
-    s5: '本阶段剩余', // L56
-    s6: '已下载文件 · 共 ${formatCount(stage?.total ?? 0)}', // L62
-    s7: '已下载文件（本阶段无文件数）', // L63
-    s8: '本阶段进度', // L72
-    s9: '准备中', // L80
-    s10: '${pad2(task.index)} / ${pad2(task.total)} · ${stage?.label || \'准备中\'}', // L80
-    s11: '准备中', // L81
-    s12: '累计已传输', // L92
-    s13: '已用时', // L96
-    s14: '装好的实例', // L100
-    s15: '状态', // L100
-    s16: '安装中', // L105
-    s17: '已取消', // L107
-    s18: '失败', // L108
-    s19: 'Java 运行时', // L112
-    s20: '安装时自动探测', // L114
+    empty: '无安装任务。选好版本后点「开始安装」。',
+    speed: (unit: string) => (unit ? `下载速度 · ${unit}` : '下载速度'),
+    eta: '剩余时间',
+    files: (total: string) => `已下载文件 · 共 ${total}`,
+    filesPlain: '已下载文件',
+    progressAria: '本阶段进度',
+    transferred: '累计已传输',
+    instanceDone: '装好的版本',
+    javaLabel: 'Java 运行时',
+    javaAuto: '安装时探测',
   },
 
   // ---- components/QueuePanel.tsx ----
   QueuePanel: {
-    s1: '安装中', // L14
-    s2: '完成', // L15
-    s3: '失败', // L16
-    s4: '已取消', // L17
-    s5: '原版', // L49
+    empty: '无安装记录',
+    files: (n: string) => `${n} 个文件`,
+    view: '查看',
   },
 
   // ---- components/EnvPanel.tsx ----
   EnvPanel: {
-    s1: '正在探测本机 Java', // L19
-    s2: '探测失败', // L22
-    s3: '游戏目录', // L50
-    s4: '未设置', // L52
+    loading: '正在探测本机 Java',
+    errorFlag: '探测失败',
+    noJava: '没有合适的 Java。安装时自动下载。',
+    unset: '未设置',
+    note: 'Adoptium 不可达时改用清华镜像。',
+    refresh: '重新探测',
   },
 
   // ---- components/StageRail.tsx ----
   StageRail: {
-    s1: '安装阶段', // L23
-    s2: '待执行', // L32
-    s3: '中断', // L33
-    s4: '${formatCount(stage.done)} / ${formatCount(stage.total)} 文件', // L34
-    s5: '已就绪', // L35
-    s6: '进行中', // L36
+    ariaLabel: '安装阶段',
+    waiting: '待执行',
+    stopped: '中断',
+    files: (done: string, total: string) => `${done} / ${total} 文件`,
+    ready: '已就绪',
+    running: '进行中',
   },
 
   // ---- pages/InstallPage.tsx ----
   InstallPage: {
-    s1: '演示数据', // L74
-    s2: '这次安装', // L101
-    s3: '当前任务', // L101
+    title: '安装',
+    lede: '选版本、加载器、下载源，然后开始。',
+    demoNote: '浏览器预览：进度为演示数据。',
+    setupHeading: '安装设置',
+    readoutRunning: '当前任务',
+    readoutDone: '这次安装',
+    queueHeading: '安装队列',
+    queueCount: (n: number) => `${n} 轮`,
+    envHeading: '本机环境',
+  },
+
+  // ---- pages/PacksPage.tsx ----
+  PacksPage: {
+    lede: '搜整合包，看它要哪个版本和加载器，装进当前目录。',
+    loaderAny: '不限加载器',
+    engineFallback: '安装游戏本体',
+    cfKeyMissing: '需要 CurseForge API key。',
+    cfKeyMissingDetail: '需要 CurseForge API key，在页面底部填。',
+    noGameDir: '还没有选择游戏目录。',
+    demoNote: '浏览器预览：搜索和进度为演示数据。',
+    targetHeading: '目标目录',
+    targetNote: '隔离开时模组进版本目录，关时进根 mods/，会和别的包混。',
+    installHeading: '安装进度',
+    installProgressAria: '整合包安装进度',
+    packFallback: '整合包',
+    engineLine: (index: string, total: string, label: string) => `引擎：${index} / ${total} · ${label}`,
+    engineFiles: (done: string, total: string) => `（${done} / ${total} 个文件）`,
+    transferred: '本阶段已传输',
+    installedVersion: '装好的版本',
+    packFiles: '整合包文件',
+    packFilesValue: (files: string, bytes: string) => `${files} 个 · ${bytes}`,
+    downloads: (n: string) => `${n} 次下载`,
+    overridesSkipped: '覆盖 / 跳过',
+    installFailedFlag: '安装失败',
+    warningFlag: '注意',
+    cancelInstall: '取消安装',
+    openGameDir: '打开游戏目录',
+    searchHeading: '搜索',
+    sourceLabel: '来源',
+    sourceAria: '整合包来源',
+    sourceHintModrinth: 'Modrinth 不需要 key。',
+    sourceHintCf: 'CurseForge 需要 key，在页面底部填。',
+    queryLabel: '关键词',
+    queryPlaceholder: '留空看热门',
+    mcLabel: 'Minecraft 版本',
+    mcPlaceholder: '例如 1.21.1',
+    loaderLabel: '加载器',
+    sortLabel: '排序',
+    searching: '搜索中……',
+    search: '搜索',
+    resultCount: (n: string) => `共 ${n} 个`,
+    needKeyFlag: '需要 key',
+    searchErrorFlag: '搜索失败',
+    searchingAria: '正在搜索整合包',
+    empty: '搜索无结果。换个关键词或放宽筛选。',
+    authorUnknown: '未知作者',
+    selected: '已选',
+    view: '查看',
+    licenseUnset: '未标注许可证',
+    detailFlag: '详情',
+    detailLoading: '正在获取整合包详情',
+    supportedMc: '支持的 Minecraft',
+    loadersLabel: '加载器',
+    versionCount: '版本数',
+    sourceUrl: '源码',
+    pickVersion: '版本',
+    versionHint: '决定装哪个 Minecraft 和加载器。',
+    installing: '正在安装……',
+    installHere: '装到这个目录',
+    noVersions: '没有可安装的版本。',
+    bodySummary: '整合包说明',
+    keyHeading: 'CurseForge API key',
+    keyNote: '需要 CurseForge API key。填一次存本机，不上传。申请：',
+    keyPlaceholder: '粘贴 API key',
+    keySaved: (masked: string) => `已保存：${masked}`,
+    keyEmpty: '未填写',
+    keySave: '保存',
+    keyClear: '清除',
+  },
+
+  // ---- pages/ImportPage.tsx ----
+  ImportPage: {
+    lede: '把别的启动器里装好的版本搬过来，不动源目录。',
+    noTargetDir: '还没有选择目标目录。',
+    noSelection: '还没有勾选实例。',
+    demoNote: '浏览器预览：列表为演示数据。',
+    errorFlag: '出错',
+    targetHeading: '目标目录',
+    targetDirLabel: '目标游戏目录',
+    scanning: '正在扫描……',
+    scan: '扫描本机启动器',
+    scanSummary: (paths: number, ms: number) => `扫了 ${paths} 个路径，用时 ${ms} ms`,
+    foundList: (names: string) => ` │ 找到：${names}`,
+    foundNone: ' │ 未找到',
+    foundHeading: '找到的实例',
+    foundCount: (items: number, versions: number) => `${items} 项 · ${versions} 个版本`,
+    scanEmpty: '没有找到可导入的实例。原因见下方「扫描明细」。',
+    selected: '已选',
+    select: '选择',
+    measuring: '体积统计中……',
+    sizeLine: (files: string, bytes: string) => `${files} 个文件 │ ${bytes}`,
+    versionWillCopy: '会复制这个版本目录',
+    versionNoDir: '没有独立版本目录，版本要在「安装」页重装',
+    noVersionDir: '没有独立版本目录。导入只带 mods / config。',
+    optionsHeading: '导入内容',
+    optMods: 'mods',
+    optModsHint: '复制源目录的 mods/',
+    optConfig: 'config',
+    optConfigHint: '复制源目录的 config/',
+    optSaves: '存档',
+    optSavesHint: '复制源目录的 saves/，通常很大',
+    optOverwrite: '覆盖同名文件',
+    optOverwriteHint: '关时跳过同名文件。源目录不会被改。',
+    optHardlink: '硬链接',
+    optHardlinkHint: '省空间。改目标里的文件会同时改到源目录。',
+    importSelected: '导入选中项',
+    importCount: (n: number) => `${n} 项`,
+    progressHeading: '进度',
+    progressAria: '导入进度',
+    notStarted: '还没开始',
+    finished: '已完成',
+    filesProcessed: '已处理文件',
+    transferred: '已传输',
+    statusImporting: '导入中',
+    statusIdle: '空闲',
+    importedVersions: '导入的版本',
+    newFiles: '新增文件',
+    newFilesValue: (files: string, bytes: string) => `${files} 个 │ ${bytes}`,
+    skippedExisting: '跳过（已存在）',
+    linksFailed: '硬链 / 失败',
+    elapsedLabel: '用时',
+    skippedFlag: '已存在',
+    skippedNote: (list: string) =>
+      `目标里已有这些版本，已跳过：${list}。要替换就勾上「覆盖同名文件」再导一次。`,
+    failedFlag: '有失败',
+    failedNote: (n: number) => `${n} 个文件复制失败，多半被占用或权限不足。其余文件已就位。`,
+    probeHeading: '扫描明细',
+    probeHint: '找到的写证据，没找到的写原因。',
+    noScan: '没有扫描结果',
+    probeHit: '命中',
+    probeMiss: '没有',
+  },
+
+  // ---- components/InstallExtras.tsx ----
+  InstallExtras: {
+    autoNameFabric: (mc: string) => `fabric-loader-<加载器版本>-${mc}`,
+    autoNameQuilt: (mc: string) => `quilt-loader-<加载器版本>-${mc}`,
+    autoNameForge: (mc: string) => `${mc}-forge-<加载器版本>`,
+    autoNameNeoForge: 'neoforge-<加载器版本>',
+    planTimeout: '查询超时。optifine.net 或 Modrinth 可能不可达。',
+    fabricOnlyForFabric: 'Fabric / Quilt 才用得上',
+    fabricNotForForge: 'Forge 系用不上',
+    fabricQuerying: '正在查询 Modrinth……',
+    fabricError: (message: string) => `获取失败：${message}`,
+    fabricNone: '无对应构建，将跳过。',
+    fabricPending: '装完从 Modrinth 取最新版放进 mods/',
+    optifineQuerying: '正在查询 optifine.net……',
+    optifinePending: '选好版本后查询官方构建',
+    previewBadge: '（预览）',
+    optifineAuto: (file: string, pre: string) => `${file}${pre} → 放进 mods/，需要 Forge`,
+    optifineManual: (reason: string, file: string, pre: string) =>
+      `${reason}。官方构建：${file}${pre}`,
+    extrasHeading: '装完之后',
+    extrasEyebrow: '附加项',
+    extrasNote: '某一项失败不影响已经装好的版本。',
+    fabricApiLabel: 'Fabric API',
+    optifineLabel: 'OptiFine',
+    optifineSource: '文件来自 optifine.net，不托管、不代点 Install。',
+    optifineAutoScope: '只有 Forge + 1.13 以上能自动放进 mods/。',
+    optifineManualScope: '当前组合只能手动装。原版要先跑官方安装器。',
+    openInstallerBusy: '正在下载官方安装器……',
+    openInstaller: '下载并打开',
+    manualFlag: '需要手动完成',
+    openFailedFlag: '打开安装器失败',
+    nameLabel: '版本名',
+    namePlaceholder: '留空则不改名',
+    nameHintRenamed: '装完后改名，JSON 里的 id 一起改。',
+    nameHintAuto: (hint: string) => `安装器会生成 ${hint}。留空就不改。`,
+    resultHeading: '附加项结果',
+    resultRunning: '正在补齐附加项',
+    resultRunningHint: '正在改版本名 / 下载模组……',
+    resultFailedFlag: '附加项失败',
+    finalDir: (id: string) => `最终版本目录：versions/${id}`,
+    demoNote: '浏览器预览：以上为演示结论。',
+  },
+
+  // ---- components/Select.tsx ----
+  Select: {
+    placeholder: '请选择',
+  },
+
+  // ---- components/DirPicker.tsx ----
+  DirPicker: {
+    pickDir: '选择 .minecraft 所在目录',
+    empty: '还没有选择目录',
+    open: '打开',
+    openTitle: '在文件管理器里打开',
+    noDirs: '没有记录过的目录',
+    addDir: '+ 添加目录',
+  },
+
+  // ---- components/VersionPicker.tsx ----
+  VersionPicker: {
+    loading: '正在获取版本清单……',
+    placeholder: '输入版本号搜索，例如 1.21',
+    noMatch: '没有匹配的版本',
+    moreHint: '继续输入以缩小范围……',
   },
 
   // ---- pages/VersionsPage.tsx ----
   VersionsPage: {
-    s1: '还没有设置游戏目录', // L73
-    s2: '出错', // L86
-    s3: '扫描中', // L95
-    s4: '${items.length} 个 · ${formatBytes(total)}', // L95
-    s5: '原版', // L111
-    s6: '删掉？', // L123
-    s7: '删除中…', // L130
-    s8: '确认删除', // L130
-    s9: '版本数', // L168
-    s10: '带加载器', // L172
-    s11: '占用', // L176
+    title: '版本',
+    rescan: '重新扫描',
+    errorFlag: '出错',
+    installedHeading: '已装版本',
+    scanning: '扫描中',
+    count: (n: number, bytes: string) => `${n} 个 · ${bytes}`,
+    empty: '没有版本。到「安装」页装一个。',
+    versionMeta: (kind: string, files: string, bytes: string, date: string) =>
+      `${kind} │ ${files} 个文件 │ ${bytes} │ ${date}`,
+    modsSuffix: (path: string) => ` │ 模组 ${path}`,
+    modsTargetLead: '当前设置下，新装的模组会写进',
+    modsPathIsolated: 'versions/<版本id>/mods/',
+    modsPathShared: 'mods/',
+    deleteAsk: '删除版本？',
+    deleting: '删除中……',
+    confirmDelete: '确认删除',
+    delete: '删除',
+    demoNote: '浏览器预览：以上为演示数据。',
+    isolationHeading: '版本隔离',
+    noticeFlag: '给谁用',
+    targetIsolated: '每个版本一份，同目录装第二个包不会混。',
+    targetShared: '所有版本共用，装第二个包会和第一个混。',
+    noMigration: '不提供自动迁移：根 mods/ 里的文件属于哪个版本只能猜。要换落点就重装一次。',
+    manualMigrate: '手动迁移',
+    manualMigrateValue: '根 mods/ 里该版本专属的 jar → versions/<版本id>/mods/',
+    whoReads: '隔离后谁读得到',
+    whoReadsValue: 'PCL / HMCL 这类启动器',
+    officialLauncher: '官方启动器',
+    officialReads: '只读根目录 mods/',
+    summaryHeading: '统计',
+    versionCount: '版本数',
+    withLoader: '带加载器',
+    size: '占用',
   },
 
   // ---- pages/LogsPage.tsx ----
   LogsPage: {
-    s1: '全部', // L16
-    s2: '信息', // L17
-    s3: '警告', // L18
-    s4: '错误', // L19
-    s5: '跟着最新一条', // L74
-    s6: '暂无日志。开始安装后，进度和错误会显示在这里。', // L93
-    s7: '此级别暂无日志。试试其他筛选。', // L94
-    s8: '警告', // L106
-    s9: '错误', // L106
+    title: '日志',
+    count: (n: number) => `共 ${n} 条`,
+    lede: '安装过程中的进度、警告和错误。',
+    filterAll: '全部',
+    filterInfo: '信息',
+    filterWarn: '警告',
+    filterError: '错误',
+    follow: '跟随最新',
+    clear: '清空',
+    empty: '无日志',
+    emptyFiltered: '该级别无日志',
+    levelWarn: '警告',
+    levelError: '错误',
   },
 
   // ---- pages/SettingsPage.tsx ----
   SettingsPage: {
-    s1: '添加游戏目录', // L48
-    s2: '只影响这台机器', // L85
-    s3: '下载', // L95
-    s4: '并发下载数', // L103
-    s5: '同时下载的文件数，1–64。过高可能被限速。', // L104
-    s6: '默认跳过资源文件', // L119
-    s7: '只安装启动必需文件；游戏内会缺少音效和语言文件。', // L120
-    s8: '目录与运行时', // L135
-    s9: '默认游戏目录', // L142
-    s10: '.minecraft 所在目录。留空使用系统默认目录。', // L143
-    s11: '系统默认目录', // L149
-    s12: 'Java 路径', // L166
-    s13: 'javaw.exe 或 java 路径。留空则自动探测，必要时自动下载。', // L167
-    s14: '自动探测', // L173
-    s15: '第三方镜像', // L180
-    s16: '本机 Java', // L189
-    s17: '探测中', // L191
-    s18: '${java.length} 个', // L191
-    s19: '正在探测本机 Java', // L194
-    s20: '探测失败', // L197
-    s21: '已下载的运行时', // L245
-    s22: '读取中', // L247
-    s23: '${runtimes.length} 个', // L247
-    s24: 'runtime/jre-&lt;主版本&gt;/', // L251
-    s25: '常用目录', // L274
-    s26: '当前', // L302
-    s27: '切到这个', // L302
-    s28: '危险操作', // L341
-  },
-
-  // ---- lib/nav.ts ----
-  nav: {
-    s1: '安装', // L4
-    s2: '版本', // L5
-    s3: '日志', // L6
-    s4: '设置', // L7
-    s5: '导入',
-    s6: '整合包',
+    addDirTitle: '添加游戏目录',
+    title: '设置',
+    scope: '只影响这台机器',
+    lede: '改的是下一次安装的默认值。已装好的版本不受影响。',
+    downloadsHeading: '下载',
+    defaultConcurrency: (n: number) => `默认 ${n}`,
+    concurrencyLabel: '并发下载数',
+    concurrencyHint: '同时下载的文件数，1–64。',
+    skipAssetsLabel: '默认跳过资源文件',
+    skipAssetsHint: '游戏能启动，但没有音效和语言文件。',
+    isolationHeading: '版本隔离',
+    isolationLabel: '版本隔离',
+    isolationHint: '开：versions/<版本id>/mods/，每个版本一份。关：根 mods/，所有版本共用。',
+    noticeFlag: '给谁用',
+    isolationExtra: '不启动游戏，也不改启动器。已装好的版本不会自动迁移。',
+    dirsHeading: '目录与运行时',
+    defaultDirLabel: '默认游戏目录',
+    defaultDirHint: '.minecraft 所在目录。留空用系统默认。',
+    defaultDirPlaceholder: '系统默认目录',
+    defaultBtn: '默认',
+    javaPathLabel: 'Java 路径',
+    javaPathHint: 'javaw.exe 或 java。留空自动探测，必要时自动下载。',
+    javaPathPlaceholder: '自动探测',
+    mirrorFlag: '第三方镜像',
+    mirrorNote: 'Adoptium 不可达时改用清华镜像（第三方）。',
+    javaHeading: '本机 Java',
+    javaCount: (n: number) => `${n} 个`,
+    probing: '探测中',
+    javaLoading: '正在探测本机 Java',
+    javaErrorFlag: '探测失败',
+    noJava: '没有合适的 Java。安装时自动下载。',
+    refresh: '重新探测',
+    downloadedHeading: '已下载的运行时',
+    reading: '读取中',
+    runtimesCount: (n: number) => `${n} 个`,
+    runtimesLede: '自动下载的 Java 在 runtime/jre-<主版本>/。删掉就会重新下。',
+    runtimesEmpty: '没有下载过运行时',
+    commonDirs: '常用目录',
+    addDir: '添加目录',
+    dirsEmpty: '没有记录过的目录。装一次后会自动出现。',
+    current: '当前',
+    switchTo: '切到这个',
+    remove: '移除',
+    save: '保存',
+    reset: '恢复默认',
+    aboutHeading: '关于与合规',
+    aboutLede:
+      '从 Mojang 官方服务器取游戏文件，按选择装加载器。不托管游戏文件，不提供离线绕过。',
+    aboutVersion: '版本',
+    aboutGameSource: '游戏文件来源',
+    aboutGameSourceValue: 'Mojang 官方服务器',
+    aboutMirror: '可选的第三方镜像',
+    aboutMirrorValue: 'BMCLAPI（社区维护，需手动开启）',
+    aboutJavaSource: 'Java 运行时来源',
+    aboutJavaSourceValue: 'Adoptium 官方；不可达时改用清华镜像',
+    aboutLoader: '模组加载器安装',
+    aboutLoaderValue: '调用 Forge / NeoForge / Fabric / Quilt 官方 installer',
+    aboutData: '本机收集的数据',
+    aboutDataValue: '无',
+    aboutLicense: '许可证',
+    aboutLicenseValue: 'MIT；界面字体 Saira（SIL OFL 1.1）',
+    aboutGroup: '交流群',
+    aboutGroupValue: '老万的 MC 技术群 · 810329264',
+    licenseNote: '需要拥有 Minecraft 正版授权。不验证、不保存账号。',
+    dangerHeading: '危险操作',
+    resetLede: '清掉本机设置，回到默认。已装好的版本和文件不动。',
+    resetBtn: '清除本机设置',
   },
 
   // ---- lib/format.ts ----
   format: {
-    s1: '；不到一分钟就直接给秒数，别显示成', // L41
-    s2: '> 99 分', // L46
+    etaOver99: '> 99 分',
   },
 
   // ---- lib/types.ts ----
   types: {
-    s1: '官方源', // L103
-    s2: 'BMCLAPI 第三方镜像', // L104
+    sourceOfficial: '官方源',
+    sourceMirror: 'BMCLAPI 镜像',
   },
 
-  // ---- lib/mock.ts ----
+  // ---- lib/mock.ts（浏览器演示后端；阶段名和提示会真的显示在界面上） ----
   mock: {
-    s1: '读取版本清单', // L97
-    s2: '版本 ${req.mc_version}（release）', // L101
-    s3: '下载依赖库', // L105
-    s4: '依赖库 128 个文件，共 59.5 MB', // L109
-    s5: '下载资源文件', // L116
-    s6: '资源文件 3,021 个文件，共 647.6 MB', // L120
-    s7: 'assets 里有 2 个文件校验失败，已重新下载', // L121
-    s8: '下载游戏本体', // L127
-    s9: '游戏本体 ${req.mc_version}.jar，25.4 MB', // L131
-    s10: '安装模组加载器', // L138
-    s11: '调用官方 installer：${loader} ${version} / ${req.mc_version}', // L142
-    s12: '完成：新增 ${report.files} 个文件，共 ${(report.bytes / 1_048_576).toFixed(1)} MB，用时 ${(report.duration_ms / 1000).toFixed(1)}s', // L205
-    s13: '浏览器无法打开文件管理器，请使用桌面版。', // L320
-    s14: '没有这个版本：${id}', // L364
+    stagePack: '下载整合包',
+    stageEngine: '安装游戏本体与加载器',
+    stageWrite: '写入整合包文件',
+    stageMeta: '读取版本清单',
+    noteMeta: (mc: string) => `版本 ${mc}（release）`,
+    stageLibraries: '下载依赖库',
+    noteLibraries: '依赖库 128 个文件，共 59.5 MB',
+    stageAssets: '下载资源文件',
+    noteAssets: '资源文件 3,021 个文件，共 647.6 MB',
+    warnAssets: 'assets 里有 2 个文件校验失败，已重新下载',
+    stageClient: '下载游戏本体',
+    noteClient: (mc: string) => `游戏本体 ${mc}.jar，25.4 MB`,
+    stageLoader: '安装模组加载器',
+    noteLoader: (loader: string, version: string, mc: string) =>
+      `调用官方 installer：${loader} ${version} / ${mc}`,
+    done: (files: number, mb: string, seconds: string) =>
+      `完成：新增 ${files} 个文件，共 ${mb} MB，用时 ${seconds}s`,
+    openDirBrowser: '浏览器里打不开文件管理器。改用桌面版。',
+    missingVersion: (id: string) => `没有这个版本：${id}`,
   },
 
   // ---- lib/useInstall.ts ----
   useInstall: {
-    s1: '补到', // L88
-    s2: '已取消，已经下载的文件留在原处', // L156
+    cancelled: '已取消，已下载的文件留在原处',
+  },
+
+  // ---- lib/isolate.ts ----
+  isolate: {
+    badVersionId: (id: string) => `版本目录名不能当目录用：${id}`,
+  },
+
+  // ---- lib/extras-api.ts ----
+  extras: {
+    labelFabricApi: 'Fabric API',
+    labelOptifine: 'OptiFine',
+    labelRename: '版本名',
+    statusDone: '已完成',
+    statusSkipped: '已跳过',
+    statusFailed: '失败',
+    statusManual: '需要手动完成',
+    nameEmpty: '版本名不能为空',
+    nameSpaces: '版本名前后不能有空格',
+    nameTooLong: (n: number) => `版本名最多 ${n} 个字符`,
+    nameDot: '版本名不能是 . 或 ..',
+    nameForbidden: (ch: string) =>
+      `版本名里不能有 \`${ch}\`（/ \\ : * ? " < > | 和控制字符都不行）`,
+    nameTrailingDot: '版本名不能以点结尾',
+    nameReserved: (name: string) => `\`${name}\` 是 Windows 保留设备名，换一个`,
+    skippedNoVersion: '这次安装没有产出可用的版本目录，附加项已跳过。',
+    optifineNoNeoForge: 'OptiFine 不支持 NeoForge',
+    optifineNoFabric: 'OptiFine 不能由 Fabric/Quilt 直接加载，需要第三方兼容层；不自动安装',
+    optifineForgeReady: 'Forge 已装：OptiFine 的官方 jar 是 Forge mod，放进 mods/ 即可',
+    optifineVanillaManual: '原版需要 OptiFine 官方安装器 patch 游戏；可以下载后手动点 Install',
+  },
+
+  // ---- lib/import-api.ts ----
+  launchers: {
+    vanilla: '官方启动器',
+    unknown: '未知来源',
+    kindGameDir: '游戏目录',
+    kindPrism: 'Prism 实例',
+    kindMultiMc: 'MultiMC 实例',
+  },
+
+  // ---- lib/packs-api.ts ----
+  packs: {
+    sortRelevance: '相关度',
+    sortDownloads: '下载量',
+    sortUpdated: '最近更新',
+    sortNewest: '最新发布',
+    keySavedShort: '已保存',
+    missingPack: (id: string) => `演示数据里没有这个整合包：${id}`,
   },
 
   // ---- App.tsx ----
   app: {
-    s1: '已保存。', // L109
-    s2: '本机设置已清除。', // L115
+    saved: '已保存',
+    cleared: '本机设置已清除',
+    packInstalled: (name: string, version: string) => `已装好 ${name} ${version}`,
   },
-
 } as const;
 
 export type Dict = typeof zhCN;

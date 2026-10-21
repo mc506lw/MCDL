@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 
 import { DirPicker } from '../components/DirPicker';
+import { T } from '../i18n';
 import { api, IS_TAURI } from '../lib/api';
 import { formatBytes, formatCount, formatDate, pad2, padPercent } from '../lib/format';
 import {
@@ -54,7 +55,7 @@ interface Props {
 
 /** 搜索框里的加载器筛选项。 */
 const LOADER_FILTERS: Array<{ value: '' | LoaderKind; label: string }> = [
-  { value: '', label: '不限加载器' },
+  { value: '', label: T.PacksPage.loaderAny },
   { value: 'fabric', label: 'Fabric' },
   { value: 'neoforge', label: 'NeoForge' },
   { value: 'forge', label: 'Forge' },
@@ -146,7 +147,7 @@ function applyProgress(view: InstallView, progress: PackProgress): InstallView {
         const base: EngineView = view.engine ?? {
           index: 1,
           total: 1,
-          label: '安装游戏本体',
+          label: T.PacksPage.engineFallback,
           files: null,
         };
         return {
@@ -248,7 +249,7 @@ export function PacksPage({
     setDetailError(null);
 
     if (hit.source === 'curseforge' && !cfKey) {
-      setDetailError('CurseForge 需要 API key：先在下面填一个，或者切到 Modrinth。');
+      setDetailError(T.PacksPage.cfKeyMissingDetail);
       return;
     }
 
@@ -297,7 +298,7 @@ export function PacksPage({
   async function startInstall() {
     if (!selected) return;
     if (!gameDir.trim()) {
-      setDetailError('先选游戏目录，再开始安装。');
+      setDetailError(T.PacksPage.noGameDir);
       return;
     }
     setDetailError(null);
@@ -392,35 +393,27 @@ export function PacksPage({
     <div className="wrap">
       <header className="ef-head">
         <h1>
-          整合包 <small>Modpacks</small>
+          {T.nav.packs} <small>Modpacks</small>
         </h1>
-        <p>
-          搜整合包、看它要哪个 Minecraft 版本和加载器，然后一键装进当前目录。
-          游戏本体和加载器还是走同一个引擎，整合包只是它上面的一层编排。
-        </p>
+        <p>{T.PacksPage.lede}</p>
       </header>
 
       {!IS_TAURI && (
-        <p className="ef-notice" data-flag="演示数据">
-          浏览器预览：搜索和进度来自内置的演示数据，不是真实网络。装成桌面应用后，
-          这里会真的去 Modrinth / CurseForge 拉数据，并调用引擎下载。
+        <p className="ef-notice" data-flag={T.common.demoData}>
+          {T.PacksPage.demoNote}
         </p>
       )}
 
       <section className="ef-panel">
         <h2>
-          装到哪 <small>Target</small>
+          {T.PacksPage.targetHeading} <small>Target</small>
         </h2>
-        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label="游戏目录" />
-        <p className="ef-note">
-          MCDL 没有实例隔离：整合包会装进同一个 <code>.minecraft</code> 的{' '}
-          <code>mods/</code> 里。同一个目录里再装第二个整合包，两边的模组会混在一起，
-          所以换包之前最好换一个目录。
-        </p>
+        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label={T.common.gameDir} />
+        <p className="ef-note">{T.PacksPage.targetNote}</p>
         {onOpenSettings && (
           <div className="ef-actions">
             <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-              管理目录
+              {T.common.manageDirs}
             </button>
           </div>
         )}
@@ -429,7 +422,7 @@ export function PacksPage({
       {install && (
         <section className="ef-panel hero">
           <h2>
-            安装进度{' '}
+            {T.PacksPage.installHeading}{' '}
             <small>
               {install.status === 'running'
                 ? 'Running'
@@ -442,18 +435,18 @@ export function PacksPage({
           </h2>
 
           <ul className="ef-facts ef-field">
-            <li>{install.report?.pack_name ?? selected?.title ?? '整合包'}</li>
+            <li>{install.report?.pack_name ?? selected?.title ?? T.PacksPage.packFallback}</li>
             <li>{install.report?.pack_version ?? chosenVersion?.version_number ?? '—'}</li>
             <li>{install.report?.mc_version ?? chosenVersion?.game_versions[0] ?? '—'}</li>
             <li className="path" title={gameDir}>
-              {gameDir || '未指定目录'}
+              {gameDir || T.common.dirUnset}
             </li>
           </ul>
 
           <div
             className={`ef-progress${ratio === null ? ' is-unknown' : ''}`}
             role="progressbar"
-            aria-label="整合包安装进度"
+            aria-label={T.PacksPage.installProgressAria}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
@@ -461,8 +454,12 @@ export function PacksPage({
           >
             <span className="ef-eyebrow">
               {install.phase
-                ? `${pad2(install.phase.index)} / ${pad2(install.phase.total)} · ${install.phase.label}`
-                : '准备中'}
+                ? T.common.stageLine(
+                    pad2(install.phase.index),
+                    pad2(install.phase.total),
+                    install.phase.label,
+                  )
+                : T.common.preparing}
             </span>
             <span className="ef-field">{percent}</span>
             <i />
@@ -470,23 +467,29 @@ export function PacksPage({
 
           {install.engine && (
             <p className="ef-note" style={{ marginTop: '0.5rem' }}>
-              引擎：{pad2(install.engine.index)} / {pad2(install.engine.total)} ·{' '}
-              {install.engine.label}
+              {T.PacksPage.engineLine(
+                pad2(install.engine.index),
+                pad2(install.engine.total),
+                install.engine.label,
+              )}
               {install.engine.files && install.engine.files.total > 0
-                ? `（${formatCount(install.engine.files.done)} / ${formatCount(install.engine.files.total)} 个文件）`
+                ? T.PacksPage.engineFiles(
+                    formatCount(install.engine.files.done),
+                    formatCount(install.engine.files.total),
+                  )
                 : ''}
             </p>
           )}
 
           <ul className="ef-ledger">
             <li>
-              <span>本阶段已传输</span>
+              <span>{T.PacksPage.transferred}</span>
               <span className="ef-field">
                 {activeCounts ? formatBytes(activeCounts.bytesDone) : '—'}
               </span>
             </li>
             <li>
-              <span>已用时</span>
+              <span>{T.common.elapsed}</span>
               <span className="ef-field">
                 {install.status === 'running'
                   ? `${((Date.now() - install.startedAt) / 1000).toFixed(1)} s`
@@ -496,31 +499,34 @@ export function PacksPage({
               </span>
             </li>
             <li>
-              <span>状态</span>
+              <span>{T.common.status}</span>
               <span className="ef-field">
                 {install.status === 'running'
-                  ? '安装中'
+                  ? T.common.statusRunning
                   : install.status === 'done'
-                    ? '完成'
+                    ? T.common.statusDone
                     : install.status === 'cancelled'
-                      ? '已取消'
-                      : '失败'}
+                      ? T.common.statusCancelled
+                      : T.common.statusFailed}
               </span>
             </li>
             {install.report && (
               <>
                 <li>
-                  <span>装好的版本</span>
+                  <span>{T.PacksPage.installedVersion}</span>
                   <span className="ef-field">{install.report.installed_version}</span>
                 </li>
                 <li>
-                  <span>整合包文件</span>
+                  <span>{T.PacksPage.packFiles}</span>
                   <span className="ef-field">
-                    {install.report.pack_files} 个 · {formatBytes(install.report.pack_bytes)}
+                    {T.PacksPage.packFilesValue(
+                      formatCount(install.report.pack_files),
+                      formatBytes(install.report.pack_bytes),
+                    )}
                   </span>
                 </li>
                 <li>
-                  <span>覆盖文件 / 跳过</span>
+                  <span>{T.PacksPage.overridesSkipped}</span>
                   <span className="ef-field">
                     {install.report.overrides} / {install.report.skipped}
                   </span>
@@ -530,13 +536,13 @@ export function PacksPage({
           </ul>
 
           {install.error && (
-            <p className="ef-notice" data-flag="安装失败">
+            <p className="ef-notice" data-flag={T.PacksPage.installFailedFlag}>
               {install.error}
             </p>
           )}
 
           {install.report && install.report.warnings.length > 0 && (
-            <div className="ef-notice" data-flag="注意">
+            <div className="ef-notice" data-flag={T.PacksPage.warningFlag}>
               <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
                 {install.report.warnings.map((warning) => (
                   <li key={warning}>{warning}</li>
@@ -553,7 +559,7 @@ export function PacksPage({
                   type="button"
                   onClick={() => void cancelInstall()}
                 >
-                  取消安装
+                  {T.PacksPage.cancelInstall}
                 </button>
               )}
               {install.report && IS_TAURI && (
@@ -564,7 +570,7 @@ export function PacksPage({
                     void api.openGameDir(install.report?.game_dir ?? gameDir).catch(() => undefined)
                   }
                 >
-                  打开游戏目录
+                  {T.PacksPage.openGameDir}
                 </button>
               )}
             </div>
@@ -594,7 +600,7 @@ export function PacksPage({
 
       <section className="ef-panel">
         <h2>
-          搜索 <small>Search</small>
+          {T.PacksPage.searchHeading} <small>Search</small>
         </h2>
 
         <form
@@ -605,8 +611,8 @@ export function PacksPage({
           }}
         >
           <div className="field">
-            <span>来源</span>
-            <div className="ef-seg" role="radiogroup" aria-label="整合包来源">
+            <span>{T.PacksPage.sourceLabel}</span>
+            <div className="ef-seg" role="radiogroup" aria-label={T.PacksPage.sourceAria}>
               <label>
                 <input
                   type="radio"
@@ -628,35 +634,35 @@ export function PacksPage({
             </div>
             <small>
               {source === 'modrinth'
-                ? 'Modrinth 的接口公开，不需要 key。'
-                : 'CurseForge 的官方接口要 key，在下面填一次即可。'}
+                ? T.PacksPage.sourceHintModrinth
+                : T.PacksPage.sourceHintCf}
             </small>
           </div>
 
           <div className="field">
-            <span id="pack-query-label">关键词</span>
+            <span id="pack-query-label">{T.PacksPage.queryLabel}</span>
             <input
               aria-labelledby="pack-query-label"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="留空看热门整合包"
+              placeholder={T.PacksPage.queryPlaceholder}
               spellCheck={false}
             />
           </div>
 
           <div className="field">
-            <span id="pack-mc-label">Minecraft 版本</span>
+            <span id="pack-mc-label">{T.PacksPage.mcLabel}</span>
             <input
               aria-labelledby="pack-mc-label"
               value={mcVersion}
               onChange={(event) => setMcVersion(event.target.value)}
-              placeholder="不限，例如 1.21.1"
+              placeholder={T.PacksPage.mcPlaceholder}
               spellCheck={false}
             />
           </div>
 
           <div className="field">
-            <span id="pack-loader-label">加载器</span>
+            <span id="pack-loader-label">{T.PacksPage.loaderLabel}</span>
             <div className="select-wrap">
               <select
                 aria-labelledby="pack-loader-label"
@@ -673,7 +679,7 @@ export function PacksPage({
           </div>
 
           <div className="field">
-            <span id="pack-sort-label">排序</span>
+            <span id="pack-sort-label">{T.PacksPage.sortLabel}</span>
             <div className="select-wrap">
               <select
                 aria-labelledby="pack-sort-label"
@@ -691,32 +697,32 @@ export function PacksPage({
 
           <div className="ef-actions">
             <button className="ef-btn go" type="submit" disabled={searching || needCfKey}>
-              {searching ? '搜索中…' : '搜索'}
+              {searching ? T.PacksPage.searching : T.PacksPage.search}
             </button>
             {result && (
               <span className="ef-field" style={{ alignSelf: 'center', fontSize: '0.8rem' }}>
-                共 {formatCount(total)} 个
+                {T.PacksPage.resultCount(formatCount(total))}
               </span>
             )}
           </div>
         </form>
 
         {needCfKey && (
-          <p className="ef-notice" data-flag="需要 key">
-            CurseForge 需要 API key：在下面的面板里填一个，或者切到 Modrinth（不需要 key）。
+          <p className="ef-notice" data-flag={T.PacksPage.needKeyFlag}>
+            {T.PacksPage.cfKeyMissing}
           </p>
         )}
 
         {searchError && (
-          <p className="ef-notice" data-flag="搜索失败">
+          <p className="ef-notice" data-flag={T.PacksPage.searchErrorFlag}>
             {searchError}
           </p>
         )}
 
-        {searching && <span className="ef-skeleton line" aria-label="正在搜索整合包" />}
+        {searching && <span className="ef-skeleton line" aria-label={T.PacksPage.searchingAria} />}
 
         {!searching && result && result.hits.length === 0 && (
-          <p className="ef-empty">没有搜到整合包。换个关键词，或者把版本 / 加载器筛选放宽。</p>
+          <p className="ef-empty">{T.PacksPage.empty}</p>
         )}
 
         {!searching && result && result.hits.length > 0 && (
@@ -733,9 +739,9 @@ export function PacksPage({
                     }}
                   >
                     <b style={{ fontSize: '1rem' }}>{hit.title}</b>
-                    <span className="ef-chip">{hit.author ?? '佚名'}</span>
+                    <span className="ef-chip">{hit.author ?? T.PacksPage.authorUnknown}</span>
                     {hit.loaders.length === 0 ? (
-                      <span className="ef-chip">原版</span>
+                      <span className="ef-chip">{T.common.vanilla}</span>
                     ) : (
                       hit.loaders.map((name) => (
                         <span key={name} className="ef-chip">
@@ -754,7 +760,7 @@ export function PacksPage({
                     {hit.description}
                   </p>
                   <div className="meta">
-                    <span>{formatCount(hit.downloads)} 次下载</span>
+                    <span>{T.PacksPage.downloads(formatCount(hit.downloads))}</span>
                     <span>
                       {hit.game_versions.slice(0, 4).join(' / ')}
                       {hit.game_versions.length > 4 ? ' …' : ''}
@@ -769,7 +775,7 @@ export function PacksPage({
                     aria-pressed={selected?.id === hit.id}
                     onClick={() => void openPack(hit)}
                   >
-                    {selected?.id === hit.id ? '已选' : '查看'}
+                    {selected?.id === hit.id ? T.PacksPage.selected : T.PacksPage.view}
                   </button>
                 </div>
               </li>
@@ -785,9 +791,9 @@ export function PacksPage({
           </h2>
 
           <ul className="ef-facts ef-field">
-            <li>{project?.author ?? selected.author ?? '佚名'}</li>
-            <li>{formatCount(project?.downloads ?? selected.downloads)} 次下载</li>
-            <li>{project?.license ?? '许可证未标注'}</li>
+            <li>{project?.author ?? selected.author ?? T.PacksPage.authorUnknown}</li>
+            <li>{T.PacksPage.downloads(formatCount(project?.downloads ?? selected.downloads))}</li>
+            <li>{project?.license ?? T.PacksPage.licenseUnset}</li>
             <li>{formatDate(project?.updated ?? selected.date_modified) || '—'}</li>
           </ul>
 
@@ -796,36 +802,36 @@ export function PacksPage({
           </p>
 
           {detailError && (
-            <p className="ef-notice" data-flag="详情">
+            <p className="ef-notice" data-flag={T.PacksPage.detailFlag}>
               {detailError}
             </p>
           )}
 
           {projectLoading || versionsLoading ? (
-            <span className="ef-skeleton line" aria-label="正在取整合包详情" />
+            <span className="ef-skeleton line" aria-label={T.PacksPage.detailLoading} />
           ) : (
             <ul className="ef-ledger">
               <li>
-                <span>支持的 Minecraft</span>
+                <span>{T.PacksPage.supportedMc}</span>
                 <span className="ef-field">
                   {(project?.game_versions ?? selected.game_versions).slice(0, 6).join(' / ') || '—'}
                 </span>
               </li>
               <li>
-                <span>加载器</span>
+                <span>{T.PacksPage.loadersLabel}</span>
                 <span className="ef-field">
                   {(project?.loaders ?? selected.loaders).map(
                     (name) => LOADER_LABEL[name as LoaderKind] ?? name,
-                  ).join(' / ') || '原版'}
+                  ).join(' / ') || T.common.vanilla}
                 </span>
               </li>
               <li>
-                <span>版本数</span>
+                <span>{T.PacksPage.versionCount}</span>
                 <span className="ef-field">{versions?.length ?? '—'}</span>
               </li>
               {project?.source_url && (
                 <li>
-                  <span>源码</span>
+                  <span>{T.PacksPage.sourceUrl}</span>
                   <span className="ef-field path" title={project.source_url}>
                     {project.source_url}
                   </span>
@@ -838,7 +844,7 @@ export function PacksPage({
             <>
               <div className="ef-form" style={{ marginTop: '0.9rem' }}>
                 <div className="field">
-                  <span id="pack-version-label">装哪个版本</span>
+                  <span id="pack-version-label">{T.PacksPage.pickVersion}</span>
                   <div className="select-wrap">
                     <select
                       aria-labelledby="pack-version-label"
@@ -855,7 +861,7 @@ export function PacksPage({
                     </select>
                   </div>
                   <small>
-                    版本决定要装哪个 Minecraft 和哪个加载器版本；具体依赖写在整合包自己的索引里。
+                    {T.PacksPage.versionHint}
                   </small>
                 </div>
               </div>
@@ -867,11 +873,11 @@ export function PacksPage({
                   onClick={() => void startInstall()}
                   disabled={running || !gameDir.trim()}
                 >
-                  {running ? '正在安装…' : '装到这个目录'}
+                  {running ? T.PacksPage.installing : T.PacksPage.installHere}
                 </button>
                 {running && (
                   <button className="ef-btn small danger" type="button" onClick={() => void cancelInstall()}>
-                    取消
+                    {T.common.cancel}
                   </button>
                 )}
                 {chosenVersion && (
@@ -884,12 +890,12 @@ export function PacksPage({
           )}
 
           {versions && versions.length === 0 && (
-            <p className="ef-empty">这个整合包没有发布过可安装的版本。</p>
+            <p className="ef-empty">{T.PacksPage.noVersions}</p>
           )}
 
           {project?.body && (
             <details style={{ marginTop: '0.8rem' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>整合包说明</summary>
+              <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{T.PacksPage.bodySummary}</summary>
               <p
                 className="ef-note"
                 style={{ whiteSpace: 'pre-wrap', maxHeight: '14rem', overflow: 'auto' }}
@@ -903,16 +909,13 @@ export function PacksPage({
 
       <section className="ef-panel">
         <h2>
-          CurseForge API key <small>Key</small>
+          {T.PacksPage.keyHeading} <small>Key</small>
         </h2>
         <p className="ef-note">
-          CurseForge 的官方接口要求带一个 key。MCDL 不内置、不上传任何 key：填一次存在本机
-          （<code>localStorage</code>），之后搜索和安装都带上它。申请地址：
+          {T.PacksPage.keyNote}
           <a href={CURSEFORGE_KEY_URL} target="_blank" rel="noreferrer">
             {CURSEFORGE_KEY_URL}
           </a>
-          <br />
-          只想试试的话，用 Modrinth 就够了，那边完全不需要 key。
         </p>
 
         <form className="ef-form" onSubmit={saveKey}>
@@ -923,22 +926,21 @@ export function PacksPage({
               type="password"
               value={cfDraft}
               onChange={(event) => setCfDraft(event.target.value)}
-              placeholder="粘贴你申请的 key"
+              placeholder={T.PacksPage.keyPlaceholder}
               autoComplete="off"
               spellCheck={false}
             />
             <small>
-              {cfKey ? `已保存：${maskKey(cfKey)}` : '还没有填。'}
-              {' '}Modrinth 不需要这一项。
+              {cfKey ? T.PacksPage.keySaved(maskKey(cfKey)) : T.PacksPage.keyEmpty}
             </small>
           </div>
           <div className="ef-actions">
             <button className="ef-btn small" type="submit" disabled={!cfDraft.trim()}>
-              保存
+              {T.PacksPage.keySave}
             </button>
             {cfKey && (
               <button className="ef-btn small danger" type="button" onClick={clearKey}>
-                清除
+                {T.PacksPage.keyClear}
               </button>
             )}
           </div>

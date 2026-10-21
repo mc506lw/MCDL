@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { T } from '../i18n';
 import { api, IS_TAURI } from '../lib/api';
 
 interface Props {
@@ -47,7 +48,7 @@ export function DirPicker({ value, dirs, onChange, onPick, disabled, label }: Pr
       const picked = await openDialog({
         directory: true,
         multiple: false,
-        title: '选择 .minecraft 所在目录',
+        title: T.DirPicker.pickDir,
       });
       if (typeof picked === 'string' && picked) {
         onChange(picked);
@@ -90,9 +91,9 @@ export function DirPicker({ value, dirs, onChange, onPick, disabled, label }: Pr
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onKeyDown}
-        title={value || '还没有选择目录'}
+        title={value || T.DirPicker.empty}
       >
-        <span className="dir-path">{value || '选择 .minecraft 所在目录'}</span>
+        <span className="dir-path">{value || T.DirPicker.pickDir}</span>
         <span className="dir-caret" aria-hidden="true" />
       </button>
 
@@ -101,15 +102,15 @@ export function DirPicker({ value, dirs, onChange, onPick, disabled, label }: Pr
         type="button"
         onClick={() => void api.openGameDir(value).catch(() => undefined)}
         disabled={disabled || !value}
-        title="在文件管理器里打开"
+        title={T.DirPicker.openTitle}
       >
-        打开
+        {T.DirPicker.open}
       </button>
 
       {open && (
         <ul className="dir-options" role="listbox">
           {options.length === 0 && (
-            <li className="dir-option is-empty">还没有记录任何目录</li>
+            <li className="dir-option is-empty">{T.DirPicker.noDirs}</li>
           )}
           {options.map((dir, index) => (
             <li
@@ -137,7 +138,7 @@ export function DirPicker({ value, dirs, onChange, onPick, disabled, label }: Pr
                 void browse();
               }}
             >
-              + 添加目录…
+              {T.DirPicker.addDir}
             </li>
           )}
         </ul>

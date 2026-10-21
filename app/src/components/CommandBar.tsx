@@ -1,4 +1,5 @@
 import { IS_TAURI } from '../lib/api';
+import { T } from '../i18n';
 import { SECTIONS, type Section } from '../lib/nav';
 
 interface Props {
@@ -32,11 +33,11 @@ export function CommandBar({ section, onSection, demo }: Props) {
         </span>
         <span className="brand-text" data-tauri-drag-region>
           <b>MCDL</b>
-          <small>Minecraft 安装器</small>
+          <small>{T.CommandBar.subtitle}</small>
         </span>
       </a>
 
-      <nav aria-label="分区">
+      <nav aria-label={T.CommandBar.navLabel}>
         {SECTIONS.map((item) => (
           <a
             key={item.id}
@@ -58,8 +59,8 @@ export function CommandBar({ section, onSection, demo }: Props) {
 
       <div className="util">
         {demo && (
-          <span className="ef-state is-draft demo" title="预览模式：内置演示队列">
-            预览
+          <span className="ef-state is-draft demo" title={T.CommandBar.demoTitle}>
+            {T.CommandBar.demoBadge}
           </span>
         )}
         <a
@@ -67,12 +68,12 @@ export function CommandBar({ section, onSection, demo }: Props) {
           href="https://qm.qq.com/q/IEiEjWiXe4"
           target="_blank"
           rel="noreferrer"
-          title="加入交流群：老万的 MC 技术群 810329264"
+          title={T.CommandBar.groupTitle}
         >
-          QQ 群 <b>810329264</b>
+          {T.CommandBar.groupLabel} <b>810329264</b>
         </a>
         <button className="ef-btn small" type="button" data-theme-toggle>
-          深浅
+          {T.CommandBar.themeToggle}
         </button>
         {IS_TAURI && <WindowControls />}
       </div>
@@ -159,14 +160,14 @@ async function windowAction(action: 'minimize' | 'maximize' | 'close') {
 
 function WindowControls() {
   return (
-    <div className="winctl" aria-label="窗口">
-      <button type="button" aria-label="最小化" onClick={() => void windowAction('minimize')}>
+    <div className="winctl" aria-label={T.CommandBar.windowLabel}>
+      <button type="button" aria-label={T.CommandBar.minimize} onClick={() => void windowAction('minimize')}>
         –
       </button>
-      <button type="button" aria-label="最大化" onClick={() => void windowAction('maximize')}>
+      <button type="button" aria-label={T.CommandBar.maximize} onClick={() => void windowAction('maximize')}>
         □
       </button>
-      <button type="button" aria-label="关闭" onClick={() => void windowAction('close')}>
+      <button type="button" aria-label={T.CommandBar.close} onClick={() => void windowAction('close')}>
         ✕
       </button>
     </div>

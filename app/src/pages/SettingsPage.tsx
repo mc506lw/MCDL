@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { T } from '../i18n';
 import { api } from '../lib/api';
 import { ISOLATION_NOTICE } from '../lib/isolate';
 import {
@@ -46,7 +47,7 @@ export function SettingsPage({
       const picked = await open({
         directory: true,
         multiple: false,
-        title: '添加游戏目录',
+        title: T.SettingsPage.addDirTitle,
       });
       if (typeof picked === 'string' && picked) {
         onSave(rememberDir(settings, picked));
@@ -81,28 +82,28 @@ export function SettingsPage({
     <div className="wrap narrow">
       <header className="ef-sheet-head">
         <h1>
-          设置 <small>Settings</small>
+          {T.SettingsPage.title} <small>Settings</small>
         </h1>
-        <p className="ef-field">只影响这台机器</p>
+        <p className="ef-field">{T.SettingsPage.scope}</p>
       </header>
 
       <p className="ef-lede ef-read">
-        这里的值会成为下一次安装的默认值。已经装好的实例不受影响。
+        {T.SettingsPage.lede}
       </p>
 
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Downloads</span>
-          <span>下载</span>
+          <span>{T.SettingsPage.downloadsHeading}</span>
         </span>
-        <span className="ef-field">默认 {DEFAULT_SETTINGS.concurrency}</span>
+        <span className="ef-field">{T.SettingsPage.defaultConcurrency(DEFAULT_SETTINGS.concurrency)}</span>
       </h2>
 
       <div className="settings-block">
         <label className="ef-setting">
           <span>
-            <b>并发下载数</b>
-            <small>同时下载的文件数，1–64。过高可能被限速。</small>
+            <b>{T.SettingsPage.concurrencyLabel}</b>
+            <small>{T.SettingsPage.concurrencyHint}</small>
           </span>
           <span className="ctl num">
             <input
@@ -117,8 +118,8 @@ export function SettingsPage({
 
         <label className="ef-setting">
           <span>
-            <b>默认跳过资源文件</b>
-            <small>只安装启动必需文件；游戏内会缺少音效和语言文件。</small>
+            <b>{T.SettingsPage.skipAssetsLabel}</b>
+            <small>{T.SettingsPage.skipAssetsHint}</small>
           </span>
           <input
             className="ef-switch"
@@ -133,21 +134,16 @@ export function SettingsPage({
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Isolation</span>
-          <span>版本隔离</span>
+          <span>{T.SettingsPage.isolationHeading}</span>
         </span>
-        <span className="ef-field">{draft.isolated ? '开' : '关'}</span>
+        <span className="ef-field">{draft.isolated ? T.common.on : T.common.off}</span>
       </h2>
 
       <div className="settings-block">
         <label className="ef-setting">
           <span>
-            <b>版本隔离</b>
-            <small>
-              开：模组装进 <code>versions/&lt;版本id&gt;/mods/</code>，每个版本一份，
-              同目录装第二个整合包不会混。
-              <br />
-              关：模组装进共享的 <code>mods/</code>，所有版本共用。
-            </small>
+            <b>{T.SettingsPage.isolationLabel}</b>
+            <small>{T.SettingsPage.isolationHint}</small>
           </span>
           <input
             className="ef-switch"
@@ -158,34 +154,33 @@ export function SettingsPage({
           />
         </label>
 
-        <p className="ef-notice" data-flag="给谁用">
+        <p className="ef-notice" data-flag={T.SettingsPage.noticeFlag}>
           {ISOLATION_NOTICE}
         </p>
 
         <p className="ef-lede ef-read">
-          MCDL 只负责把模组装到对的位置，不启动游戏，也不改启动器的行为。
-          已经装好的版本不会自动迁移：想换落点，重新装一次那个整合包最稳。
+          {T.SettingsPage.isolationExtra}
         </p>
       </div>
 
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Directories</span>
-          <span>目录与运行时</span>
+          <span>{T.SettingsPage.dirsHeading}</span>
         </span>
       </h2>
 
       <div className="settings-block">
         <div className="ef-setting">
           <span>
-            <b>默认游戏目录</b>
-            <small>.minecraft 所在目录。留空使用系统默认目录。</small>
+            <b>{T.SettingsPage.defaultDirLabel}</b>
+            <small>{T.SettingsPage.defaultDirHint}</small>
           </span>
           <span className="ctl wide">
             <input
               type="text"
               value={draft.gameDir}
-              placeholder={defaultDir || '系统默认目录'}
+              placeholder={defaultDir || T.SettingsPage.defaultDirPlaceholder}
               onChange={(event) => patch({ gameDir: event.target.value })}
               spellCheck={false}
             />
@@ -195,52 +190,53 @@ export function SettingsPage({
               onClick={() => patch({ gameDir: defaultDir })}
               disabled={!defaultDir}
             >
-              默认
+              {T.SettingsPage.defaultBtn}
             </button>
           </span>
         </div>
 
         <div className="ef-setting">
           <span>
-            <b>Java 路径</b>
-            <small>javaw.exe 或 java 路径。留空则自动探测，必要时自动下载。</small>
+            <b>{T.SettingsPage.javaPathLabel}</b>
+            <small>{T.SettingsPage.javaPathHint}</small>
           </span>
           <span className="ctl wide">
             <input
               type="text"
               value={draft.javaPath}
-              placeholder="自动探测"
+              placeholder={T.SettingsPage.javaPathPlaceholder}
               onChange={(event) => patch({ javaPath: event.target.value })}
               spellCheck={false}
             />
           </span>
         </div>
 
-        <p className="ef-notice" data-flag="第三方镜像">
-          Java 运行时：官方 Adoptium 下载失败时，会改用清华镜像（第三方）获取同一份 Temurin
-          构建。
+        <p className="ef-notice" data-flag={T.SettingsPage.mirrorFlag}>
+          {T.SettingsPage.mirrorNote}
         </p>
       </div>
 
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Runtimes</span>
-          <span>本机 Java</span>
+          <span>{T.SettingsPage.javaHeading}</span>
         </span>
-        <span className="ef-field">{java ? `${java.length} 个` : '探测中'}</span>
+        <span className="ef-field">
+          {java ? T.SettingsPage.javaCount(java.length) : T.SettingsPage.probing}
+        </span>
       </h2>
 
-      {javaLoading && <span className="ef-skeleton line" aria-label="正在探测本机 Java" />}
+      {javaLoading && <span className="ef-skeleton line" aria-label={T.SettingsPage.javaLoading} />}
 
       {javaError && (
-        <p className="ef-notice" data-flag="探测失败">
+        <p className="ef-notice" data-flag={T.SettingsPage.javaErrorFlag}>
           {javaError}
         </p>
       )}
 
       {java && java.length === 0 && !javaLoading && (
         <p className="ef-empty">
-          本机没找到 Java。安装时会按版本需要从 Adoptium 取一份，放在游戏目录的 runtime 下。
+          {T.SettingsPage.noJava}
         </p>
       )}
 
@@ -266,7 +262,7 @@ export function SettingsPage({
             void loadRuntimes();
           }}
         >
-          重新探测
+          {T.SettingsPage.refresh}
         </button>
         <button
           className="ef-btn small"
@@ -274,26 +270,27 @@ export function SettingsPage({
           onClick={() => onOpenDir(draft.gameDir || defaultDir)}
           disabled={!draft.gameDir && !defaultDir}
         >
-          打开目录
+          {T.common.openDir}
         </button>
       </p>
 
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Downloaded</span>
-          <span>已下载的运行时</span>
+          <span>{T.SettingsPage.downloadedHeading}</span>
         </span>
-        <span className="ef-field">{runtimes ? `${runtimes.length} 个` : '读取中'}</span>
+        <span className="ef-field">
+          {runtimes ? T.SettingsPage.runtimesCount(runtimes.length) : T.SettingsPage.reading}
+        </span>
       </h2>
 
       <p className="ef-lede ef-read">
-        按版本需要下载的 Java 会落在游戏目录的 <code>runtime/jre-&lt;主版本&gt;/</code> 下，
-        和手工指定的 Java 分开管理。删掉这几个目录就等于让下次安装重新取一份。
+        {T.SettingsPage.runtimesLede}
       </p>
 
       {runtimes && runtimes.length === 0 && (
         <p className="ef-empty">
-          游戏目录里还没有下载过运行时。需要的话，安装时它会自己取一份放在这里。
+          {T.SettingsPage.runtimesEmpty}
         </p>
       )}
 
@@ -310,10 +307,10 @@ export function SettingsPage({
       )}
 
       <div className="ef-group-head">
-        <span>常用目录</span>
+        <span>{T.SettingsPage.commonDirs}</span>
         <span>
           <button className="ef-btn small" type="button" onClick={addDir}>
-            添加目录…
+            {T.SettingsPage.addDir}
           </button>{' '}
           <small>Dirs</small>
         </span>
@@ -321,8 +318,7 @@ export function SettingsPage({
 
       {settings.dirs.length === 0 ? (
         <p className="ef-empty">
-          还没有记录任何目录。点上面的「添加目录…」选一个，或者装一次之后，
-          用过的目录会自动出现在这里。
+          {T.SettingsPage.dirsEmpty}
         </p>
       ) : (
         <ul className="ef-ledger">
@@ -338,14 +334,14 @@ export function SettingsPage({
                   onClick={() => onSave(rememberDir(settings, dir))}
                   disabled={settings.gameDir === dir}
                 >
-                  {settings.gameDir === dir ? '当前' : '切到这个'}
+                  {settings.gameDir === dir ? T.SettingsPage.current : T.SettingsPage.switchTo}
                 </button>{' '}
                 <button
                   className="ef-btn small danger"
                   type="button"
                   onClick={() => onSave(forgetDir(settings, dir))}
                 >
-                  移除
+                  {T.SettingsPage.remove}
                 </button>
               </span>
             </li>
@@ -360,7 +356,7 @@ export function SettingsPage({
           onClick={() => onSave(draft)}
           disabled={!dirty}
         >
-          保存
+          {T.SettingsPage.save}
         </button>
         <button
           className="ef-btn"
@@ -370,7 +366,7 @@ export function SettingsPage({
             onSave(DEFAULT_SETTINGS);
           }}
         >
-          恢复默认
+          {T.SettingsPage.reset}
         </button>
       </p>
 
@@ -378,77 +374,75 @@ export function SettingsPage({
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">About</span>
-          <span>关于与合规</span>
+          <span>{T.SettingsPage.aboutHeading}</span>
         </span>
       </h2>
 
       <p className="ef-lede ef-read">
-        MCDL 是一个安装器：从 Mojang 官方服务器取 Minecraft 的文件，按你的选择装上模组加载器。
-        它不托管游戏文件，也不提供离线绕过。
+        {T.SettingsPage.aboutLede}
       </p>
 
       <ul className="ef-ledger about-list">
         <li>
-          <span>版本</span>
+          <span>{T.SettingsPage.aboutVersion}</span>
           <span>0.1.0</span>
         </li>
         <li>
-          <span>游戏文件来源</span>
-          <span>Mojang 官方服务器</span>
+          <span>{T.SettingsPage.aboutGameSource}</span>
+          <span>{T.SettingsPage.aboutGameSourceValue}</span>
         </li>
         <li>
-          <span>可选的第三方镜像</span>
-          <span>BMCLAPI（社区维护，需手动开启）</span>
+          <span>{T.SettingsPage.aboutMirror}</span>
+          <span>{T.SettingsPage.aboutMirrorValue}</span>
         </li>
         <li>
-          <span>Java 运行时来源</span>
-          <span>Adoptium 官方；不可达时改用清华镜像</span>
+          <span>{T.SettingsPage.aboutJavaSource}</span>
+          <span>{T.SettingsPage.aboutJavaSourceValue}</span>
         </li>
         <li>
-          <span>模组加载器安装</span>
-          <span>调用 Forge / NeoForge / Fabric / Quilt 官方 installer</span>
+          <span>{T.SettingsPage.aboutLoader}</span>
+          <span>{T.SettingsPage.aboutLoaderValue}</span>
         </li>
         <li>
-          <span>本机收集的数据</span>
-          <span>无</span>
+          <span>{T.SettingsPage.aboutData}</span>
+          <span>{T.SettingsPage.aboutDataValue}</span>
         </li>
         <li>
-          <span>许可证</span>
-          <span>MIT；界面字体 Saira（SIL OFL 1.1）</span>
+          <span>{T.SettingsPage.aboutLicense}</span>
+          <span>{T.SettingsPage.aboutLicenseValue}</span>
         </li>
         <li>
-          <span>交流群</span>
+          <span>{T.SettingsPage.aboutGroup}</span>
           <span>
             <a
               href="https://qm.qq.com/q/IEiEjWiXe4"
               target="_blank"
               rel="noreferrer"
             >
-              老万的 MC 技术群 · 810329264
+              {T.SettingsPage.aboutGroupValue}
             </a>
           </span>
         </li>
       </ul>
 
       <p className="ef-lede ef-read">
-        使用本工具获取 Minecraft 文件的前提，是你已经拥有对应的正版授权。
-        本工具不验证、也不代为保管任何账号信息。
+        {T.SettingsPage.licenseNote}
       </p>
 
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Danger</span>
-          <span>危险操作</span>
+          <span>{T.SettingsPage.dangerHeading}</span>
         </span>
       </h2>
 
       <p className="ef-lede ef-read">
-        清掉保存在本机的设置，回到出厂默认。已经装好的版本、下载好的文件都不会动。
+        {T.SettingsPage.resetLede}
       </p>
 
       <p className="ef-actions" style={{ marginTop: '0.9rem' }}>
         <button className="ef-btn danger" type="button" onClick={onReset}>
-          清除本机设置
+          {T.SettingsPage.resetBtn}
         </button>
       </p>
     </div>

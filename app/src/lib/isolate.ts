@@ -8,9 +8,10 @@
 // 语义提醒：隔离是**启动期**语义。MCDL 不启动游戏，它只决定装到哪，
 // 能不能读到取决于用户用哪个启动器。
 
+import { T } from '../i18n';
+
 /** 开关旁边常驻的那句话（与 `isolate.rs::ISOLATION_NOTICE` 同一份文案）。 */
-export const ISOLATION_NOTICE =
-  '隔离后的模组只有 PCL / HMCL 这类支持版本隔离的启动器能读到；官方启动器只读根目录的 mods/。';
+export const ISOLATION_NOTICE = T.common.isolationNotice;
 
 /** 一次落点计算的结果。`relative` 用 `/` 分隔，不依赖平台。 */
 export interface ModsTarget {
@@ -58,7 +59,7 @@ export function modsDir(gameDir: string, versionId: string, isolated: boolean): 
     return { dir: join(root, MODS), isolated: false, relative: MODS };
   }
   if (!isValidVersionId(versionId)) {
-    throw new Error(`版本目录名不能当目录用：${JSON.stringify(versionId)}`);
+    throw new Error(T.isolate.badVersionId(JSON.stringify(versionId)));
   }
   const relative = modsRelative(versionId, true);
   return { dir: join(root, relative), isolated: true, relative };
@@ -71,9 +72,7 @@ export function modsLabel(target: ModsTarget): string {
 
 /** 这次安装用的模式，一句话。 */
 export function isolationSummary(isolated: boolean): string {
-  return isolated
-    ? '隔离：模组写进每个版本自己的 mods/，同目录装第二个包不会混'
-    : '共享：模组写进根目录的 mods/，所有版本共用，装第二个包会混';
+  return isolated ? T.common.isolationOn : T.common.isolationOff;
 }
 
 function join(root: string, relative: string): string {

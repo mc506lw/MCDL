@@ -7,6 +7,7 @@
 //
 // 这里的时间、文件数、字节数都是演示值，界面会明说「演示数据」。
 
+import { T } from '../i18n';
 import type {
   InstallEvent,
   InstallReport,
@@ -94,52 +95,52 @@ function buildPlan(req: InstallRequest): StagePlan[] {
   const plan: StagePlan[] = [
     {
       kind: 'meta',
-      label: '读取版本清单',
+      label: T.mock.stageMeta,
       files: 0,
       bytes: 0,
       ms: 900,
-      note: `版本 ${req.mc_version}（release）`,
+      note: T.mock.noteMeta(req.mc_version),
     },
     {
       kind: 'libraries',
-      label: '下载依赖库',
+      label: T.mock.stageLibraries,
       files: 128,
       bytes: 62_400_000,
       ms: 2400,
-      note: '依赖库 128 个文件，共 59.5 MB',
+      note: T.mock.noteLibraries,
     },
   ];
 
   if (!req.skip_assets) {
     plan.push({
       kind: 'assets',
-      label: '下载资源文件',
+      label: T.mock.stageAssets,
       files: 3021,
       bytes: 679_000_000,
       ms: 6200,
-      note: '资源文件 3,021 个文件，共 647.6 MB',
-      warn: { at: 0.55, message: 'assets 里有 2 个文件校验失败，已重新下载' },
+      note: T.mock.noteAssets,
+      warn: { at: 0.55, message: T.mock.warnAssets },
     });
   }
 
   plan.push({
     kind: 'client',
-    label: '下载游戏本体',
+    label: T.mock.stageClient,
     files: 1,
     bytes: 26_600_000,
     ms: 900,
-    note: `游戏本体 ${req.mc_version}.jar，25.4 MB`,
+    note: T.mock.noteClient(req.mc_version),
   });
 
   if (loader) {
     const version = req.loader?.loader_version || LOADER_VERSION[loader];
     plan.push({
       kind: 'loader',
-      label: '安装模组加载器',
+      label: T.mock.stageLoader,
       files: 1,
       bytes: 2_400_000,
       ms: 2000,
-      note: `调用官方 installer：${loader} ${version} / ${req.mc_version}`,
+      note: T.mock.noteLoader(loader, version, req.mc_version),
     });
   }
 
@@ -202,7 +203,11 @@ export function installMock(
     emit({
       type: 'log',
       level: 'info',
-      message: `完成：新增 ${report.files} 个文件，共 ${(report.bytes / 1_048_576).toFixed(1)} MB，用时 ${(report.duration_ms / 1000).toFixed(1)}s`,
+      message: T.mock.done(
+        report.files,
+        (report.bytes / 1_048_576).toFixed(1),
+        (report.duration_ms / 1000).toFixed(1),
+      ),
     });
     onEvent({ type: 'done', report });
   };
@@ -317,7 +322,7 @@ export function defaultGameDirMock(): Promise<string> {
 }
 
 export function openGameDirMock(): Promise<void> {
-  return Promise.reject(new Error('浏览器无法打开文件管理器，请使用桌面版。'));
+  return Promise.reject(new Error(T.mock.openDirBrowser));
 }
 
 /** 演示用的已装版本。接真后端时这些数字都来自磁盘扫描。 */
@@ -361,7 +366,7 @@ export function removeVersionMock(id: string): Promise<void> {
   return new Promise((resolve, reject) =>
     window.setTimeout(() => {
       const i = INSTALLED_DEMO.findIndex((v) => v.id === id);
-      if (i < 0) reject(new Error(`没有这个版本：${id}`));
+      if (i < 0) reject(new Error(T.mock.missingVersion(id)));
       else {
         INSTALLED_DEMO.splice(i, 1);
         resolve();

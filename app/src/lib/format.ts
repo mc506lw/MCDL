@@ -3,6 +3,8 @@
 // 全部用宽体等宽数字（tabular-nums 由 endfield.css 的 .ef-field / .ef-figs 负责），
 // 单位用拉丁缩写，和数字之间留一个空格。
 
+import { T } from '../i18n';
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
 /** 字节拆成「数值 + 单位」，方便把数字做大、单位做小。 */
@@ -38,12 +40,12 @@ export function formatDuration(ms: number): string {
   return clock(seconds);
 }
 
-/** 剩余时间：秒 → `02:41`；不到一分钟就直接给秒数，别显示成 `00:00`。 */
+// 剩余时间：秒 → 02:41；不到一分钟就直接给秒数，别显示成 00:00。
 export function formatEta(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—';
   if (seconds < 1) return '< 1 s';
   if (seconds < 60) return `${Math.round(seconds)} s`;
-  if (seconds > 99 * 60) return '> 99 分';
+  if (seconds > 99 * 60) return T.format.etaOver99;
   return clock(seconds);
 }
 

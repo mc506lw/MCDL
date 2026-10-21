@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { CommandBar } from './components/CommandBar';
+import { T } from './i18n';
 import { api, IS_TAURI } from './lib/api';
 import { toast, wireReadouts, wireTheme } from './lib/fx';
 import { SECTIONS, type Section } from './lib/nav';
@@ -121,13 +122,13 @@ export default function App() {
   const saveAll = useCallback((next: Settings) => {
     setSettings(next);
     saveSettings(next);
-    toast('已保存。');
+    toast(T.app.saved);
   }, []);
 
   const resetAll = useCallback(() => {
     clearSettings();
     setSettings(DEFAULT_SETTINGS);
-    toast('本机设置已清除。');
+    toast(T.app.cleared);
   }, []);
 
   // 队列里选中的那一轮；没选就跟着正在跑的那一轮
@@ -189,7 +190,7 @@ export default function App() {
             skipAssets={settings.skipAssets}
             onInstalled={(r) => {
               saveAll(rememberDir(settings, r.game_dir));
-              toast(`已装好 ${r.pack_name} ${r.pack_version}`);
+              toast(T.app.packInstalled(r.pack_name, r.pack_version));
             }}
           />
         )}

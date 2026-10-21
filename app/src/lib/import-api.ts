@@ -7,6 +7,7 @@
 // 字段名照 `crates/mcdl-core/src/import.rs` 的 serde 输出写（snake_case）。
 
 import { IS_TAURI } from './api';
+import { T } from '../i18n';
 import { loadSettings } from './settings';
 import type { LogLevel } from './types';
 
@@ -30,17 +31,17 @@ export const LAUNCHER_LABEL: Record<LauncherId, string> = {
   baka_xl: 'BakaXL',
   prism: 'Prism',
   multi_mc: 'MultiMC',
-  vanilla: '官方启动器',
-  unknown: '未知来源',
+  vanilla: T.launchers.vanilla,
+  unknown: T.launchers.unknown,
 };
 
 /** 可导入单元的类型，对应引擎 `import::ItemKind`。 */
 export type ItemKind = 'game_dir' | 'prism_instance' | 'multi_mc_instance';
 
 export const ITEM_KIND_LABEL: Record<ItemKind, string> = {
-  game_dir: '游戏目录',
-  prism_instance: 'Prism 实例',
-  multi_mc_instance: 'MultiMC 实例',
+  game_dir: T.launchers.kindGameDir,
+  prism_instance: T.launchers.kindPrism,
+  multi_mc_instance: T.launchers.kindMultiMc,
 };
 
 /** `versions/<id>/` 里的一个版本。 */

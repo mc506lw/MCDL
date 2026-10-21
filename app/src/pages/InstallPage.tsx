@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 import { EnvPanel } from '../components/EnvPanel';
+import { T } from '../i18n';
 import { InstallForm } from '../components/InstallForm';
 import { QueuePanel } from '../components/QueuePanel';
 import { Readout } from '../components/Readout';
@@ -63,23 +64,21 @@ export function InstallPage({
     <div className="wrap">
       <header className="ef-head">
         <h1>
-          安装 <small>Install</small>
+          {T.InstallPage.title} <small>Install</small>
         </h1>
-        <p>
-          选版本、加载器和下载源，点开始。右边的读数全部来自这一次真实的下载。
-        </p>
+        <p>{T.InstallPage.lede}</p>
       </header>
 
       {demo && (
-        <p className="ef-notice" data-flag="演示数据">
-          浏览器预览：进度来自内置的演示队列，不是真实下载。装成桌面应用之后，每个数字都来自引擎。
+        <p className="ef-notice" data-flag={T.common.demoData}>
+          {T.InstallPage.demoNote}
         </p>
       )}
 
       <div className="work">
         <section className="ef-panel ef-in-power" style={step(0)} aria-labelledby="setup-h">
           <h2 id="setup-h">
-            安装设置 <small>Setup</small>
+            {T.InstallPage.setupHeading} <small>Setup</small>
           </h2>
           <InstallForm
             versions={versions}
@@ -98,14 +97,17 @@ export function InstallPage({
         <div className="stack">
           <section className="ef-panel ef-in-power hero" style={step(1)} aria-labelledby="hero-h">
             <h2 id="hero-h">
-              {task && task.status !== 'running' ? '这次安装' : '当前任务'} <small>Readout</small>
+              {task && task.status !== 'running'
+                ? T.InstallPage.readoutDone
+                : T.InstallPage.readoutRunning}{' '}
+              <small>Readout</small>
             </h2>
             <Readout task={task} />
           </section>
 
           <section className="ef-panel ef-in-power queue" style={step(2)} aria-labelledby="queue-h">
             <h2 id="queue-h">
-              安装队列 <small>{tasks.length} 轮</small>
+              {T.InstallPage.queueHeading} <small>{T.InstallPage.queueCount(tasks.length)}</small>
             </h2>
             <QueuePanel
               tasks={tasks}
@@ -118,7 +120,7 @@ export function InstallPage({
 
           <section className="ef-panel ef-in-power env" style={step(2)} aria-labelledby="env-h">
             <h2 id="env-h">
-              本机环境 <small>Runtime</small>
+              {T.InstallPage.envHeading} <small>Runtime</small>
             </h2>
             <EnvPanel
               java={java}

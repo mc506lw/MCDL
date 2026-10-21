@@ -8,6 +8,7 @@
 // CurseForge 的 API key 只存在本机 `localStorage`，不上传、不内置：
 // 没有 key 时界面给一条「去申请」的提示，Modrinth 那边完全不需要 key。
 
+import { T } from '../i18n';
 import type { InstallReport, LoaderKind, LogLevel, Progress, Source } from './types';
 
 // ---------------------------------------------------------------- 协议类型
@@ -205,7 +206,7 @@ export function saveCurseforgeKey(key: string): void {
 /** 只用于界面显示：`abcd…wxyz`，别把整串 key 摆在屏幕上。 */
 export function maskKey(key: string): string {
   const trimmed = key.trim();
-  if (trimmed.length <= 8) return trimmed ? '已保存' : '';
+  if (trimmed.length <= 8) return trimmed ? T.packs.keySavedShort : '';
   return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
 }
 
@@ -631,7 +632,7 @@ function searchMock(q: PackSearchQuery): Promise<PackSearchResult> {
 
 function findMock(id: string): MockPack {
   const pack = MOCK_PACKS.find((p) => p.hit.id === id || p.hit.slug === id);
-  if (!pack) throw new Error(`演示数据里没有这个整合包：${id}`);
+  if (!pack) throw new Error(T.packs.missingPack(id));
   return pack;
 }
 
@@ -740,32 +741,32 @@ export function installMock(
     ms: number;
     engine?: MockStage[];
   }> = [
-    { label: '下载整合包', files: 1, bytes: archiveBytes, ms: 800 },
+    { label: T.mock.stagePack, files: 1, bytes: archiveBytes, ms: 800 },
     {
-      label: '安装游戏本体与加载器',
+      label: T.mock.stageEngine,
       files: 0,
       bytes: 0,
       ms: 0,
       engine: [
-        { kind: 'meta', label: '读取版本清单', files: 0, bytes: 0, ms: 700 },
-        { kind: 'libraries', label: '下载依赖库', files: 128, bytes: 62_400_000, ms: 1600 },
+        { kind: 'meta', label: T.mock.stageMeta, files: 0, bytes: 0, ms: 700 },
+        { kind: 'libraries', label: T.mock.stageLibraries, files: 128, bytes: 62_400_000, ms: 1600 },
         ...(req.skip_assets
           ? []
           : [
               {
                 kind: 'assets' as const,
-                label: '下载资源文件',
+                label: T.mock.stageAssets,
                 files: 3021,
                 bytes: 679_000_000,
                 ms: 2600,
               },
             ]),
-        { kind: 'client', label: '下载游戏本体', files: 1, bytes: 26_600_000, ms: 900 },
+        { kind: 'client', label: T.mock.stageClient, files: 1, bytes: 26_600_000, ms: 900 },
         ...(loader
           ? [
               {
                 kind: 'loader' as const,
-                label: '安装模组加载器',
+                label: T.mock.stageLoader,
                 files: 1,
                 bytes: 2_400_000,
                 ms: 1200,
@@ -774,7 +775,7 @@ export function installMock(
           : []),
       ],
     },
-    { label: '写入整合包文件', files: mods, bytes: modBytes, ms: 2200 },
+    { label: T.mock.stageWrite, files: mods, bytes: modBytes, ms: 2200 },
   ];
 
   const startedAt = performance.now();
@@ -934,10 +935,10 @@ export function installMock(
 
 /** 演示数据里可用的排序项，界面直接渲染。 */
 export const PACK_SORTS: Array<{ value: PackSort; label: string }> = [
-  { value: 'relevance', label: '相关度' },
-  { value: 'downloads', label: '下载量' },
-  { value: 'updated', label: '最近更新' },
-  { value: 'newest', label: '最新发布' },
+  { value: 'relevance', label: T.packs.sortRelevance },
+  { value: 'downloads', label: T.packs.sortDownloads },
+  { value: 'updated', label: T.packs.sortUpdated },
+  { value: 'newest', label: T.packs.sortNewest },
 ];
 
 export const PACK_SOURCE_LABEL: Record<PackSource, string> = {

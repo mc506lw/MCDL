@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { T } from '../i18n';
 import { formatClock } from '../lib/format';
 import type { LogLevel } from '../lib/types';
 import type { LogEntry } from '../lib/useInstall';
@@ -13,10 +14,10 @@ interface Props {
 type Filter = 'all' | LogLevel;
 
 const FILTERS: Array<{ id: Filter; zh: string }> = [
-  { id: 'all', zh: '全部' },
-  { id: 'info', zh: '信息' },
-  { id: 'warn', zh: '警告' },
-  { id: 'error', zh: '错误' },
+  { id: 'all', zh: T.LogsPage.filterAll },
+  { id: 'info', zh: T.LogsPage.filterInfo },
+  { id: 'warn', zh: T.LogsPage.filterWarn },
+  { id: 'error', zh: T.LogsPage.filterError },
 ];
 
 /**
@@ -46,14 +47,13 @@ export function LogsPage({ logs, running, onClear }: Props) {
     <div className="wrap narrow">
       <header className="ef-sheet-head">
         <h1>
-          日志 <small>Logs</small>
+          {T.LogsPage.title} <small>Logs</small>
         </h1>
-        <p className="ef-field">共 {logs.length} 条</p>
+        <p className="ef-field">{T.LogsPage.count(logs.length)}</p>
       </header>
 
       <p className="ef-lede ef-read">
-        引擎每一次安装推上来的进度、警告和错误都按时间落在这里。
-        警告和错误前面有一块黄色标记，红色只用来表示删除。
+        {T.LogsPage.lede}
       </p>
 
       <div className="log-tools">
@@ -71,7 +71,7 @@ export function LogsPage({ logs, running, onClear }: Props) {
 
         <label className="ef-setting grow">
           <span>
-            <b>跟着最新一条</b>
+            <b>{T.LogsPage.follow}</b>
           </span>
           <input
             className="ef-switch"
@@ -83,15 +83,15 @@ export function LogsPage({ logs, running, onClear }: Props) {
         </label>
 
         <button className="ef-btn small danger" type="button" onClick={onClear} disabled={!logs.length}>
-          清空日志
+          {T.LogsPage.clear}
         </button>
       </div>
 
       {shown.length === 0 ? (
         <p className="ef-empty log-empty">
           {logs.length === 0
-            ? '暂无日志。开始安装后，进度和错误会显示在这里。'
-            : '此级别暂无日志。试试其他筛选。'}
+            ? T.LogsPage.empty
+            : T.LogsPage.emptyFiltered}
         </p>
       ) : (
         <ol className="logs" aria-live={running ? 'polite' : 'off'}>
@@ -103,7 +103,7 @@ export function LogsPage({ logs, running, onClear }: Props) {
               {log.level === 'info' ? (
                 <span className="tag plain">INFO</span>
               ) : (
-                <span className="ef-state is-alert tag">{log.level === 'warn' ? '警告' : '错误'}</span>
+                <span className="ef-state is-alert tag">{log.level === 'warn' ? T.LogsPage.levelWarn : T.LogsPage.levelError}</span>
               )}
               <span className="msg">{log.message}</span>
             </li>

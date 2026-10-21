@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { DirPicker } from '../components/DirPicker';
+import { T } from '../i18n';
 import { IS_TAURI } from '../lib/api';
 import { formatBytes, formatCount, formatDuration, pad2, padPercent } from '../lib/format';
 import {
@@ -199,11 +200,11 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
 
   async function runImport() {
     if (!gameDir) {
-      setError('先选一个目标游戏目录。');
+      setError(T.ImportPage.noTargetDir);
       return;
     }
     if (chosen.length === 0) {
-      setError('先勾选要导入的实例。');
+      setError(T.ImportPage.noSelection);
       return;
     }
     setRunning(true);
@@ -293,32 +294,28 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
     <div className="wrap">
       <header className="ef-head">
         <h1>
-          导入 <small>Import</small>
+          {T.nav.import} <small>Import</small>
         </h1>
-        <p>
-          把本机其它启动器里已经装好的版本搬过来。扫描只读配置和目录名，不动源目录；
-          导入时同名版本会跳过，不覆盖。
-        </p>
+        <p>{T.ImportPage.lede}</p>
       </header>
 
       {!IS_TAURI && (
-        <p className="ef-notice" data-flag="演示数据">
-          浏览器预览：列表和进度都来自内置的假数据，不是本机磁盘。装成桌面应用后，
-          这里显示的是真实的启动器目录。
+        <p className="ef-notice" data-flag={T.common.demoData}>
+          {T.ImportPage.demoNote}
         </p>
       )}
 
       {error && (
-        <p className="ef-notice" data-flag="出错">
+        <p className="ef-notice" data-flag={T.ImportPage.errorFlag}>
           {error}
         </p>
       )}
 
       <section className="ef-panel" aria-labelledby="target-h">
         <h2 id="target-h">
-          目标目录 <small>Target</small>
+          {T.ImportPage.targetHeading} <small>Target</small>
         </h2>
-        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label="目标游戏目录" />
+        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label={T.ImportPage.targetDirLabel} />
         <div className="ef-actions" style={{ marginTop: '0.7rem' }}>
           <button
             className="ef-btn"
@@ -326,32 +323,35 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
             onClick={() => void runScan()}
             disabled={scanning || running}
           >
-            {scanning ? '正在扫描…' : '扫描本机启动器'}
+            {scanning ? T.ImportPage.scanning : T.ImportPage.scan}
           </button>
           <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-            管理目录
+            {T.common.manageDirs}
           </button>
         </div>
         {scan && (
           <p style={{ ...S.sub, margin: '0.6rem 0 0' }}>
-            扫了 {scan.scanned} 个候选路径，用时 {scan.duration_ms} ms
-            {foundLaunchers.length > 0 ? ` │ 找到：${foundLaunchers.join('、')}` : ' │ 一个也没找到'}
+            {T.ImportPage.scanSummary(scan.scanned, scan.duration_ms)}
+            {foundLaunchers.length > 0
+              ? T.ImportPage.foundList(foundLaunchers.join('、'))
+              : T.ImportPage.foundNone}
           </p>
         )}
       </section>
 
       <section className="ef-panel" aria-labelledby="found-h">
         <h2 id="found-h">
-          找到的实例{' '}
+          {T.ImportPage.foundHeading}{' '}
           <small>
-            {scan === null ? '扫描中' : `${scan.items.length} 项 · ${versionCount} 个版本`}
+            {scan === null
+              ? T.ImportPage.scanning
+              : T.ImportPage.foundCount(scan.items.length, versionCount)}
           </small>
         </h2>
 
         {scan !== null && scan.items.length === 0 && (
           <p className="ef-empty">
-            本机没有扫到可以导入的东西。常见原因：这台机器上只装过 MCDL 自己，或者其它启动器把
-            游戏目录放在了非默认位置。下面的「扫描明细」会逐条说明每个位置为什么没找到。
+            {T.ImportPage.scanEmpty}
           </p>
         )}
 
@@ -372,7 +372,7 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
                         aria-pressed={on}
                         onClick={() => toggleItem(item.key)}
                       >
-                        {on ? '已选' : '选择'}
+                        {on ? T.ImportPage.selected : T.ImportPage.select}
                       </button>
                       <span className="version-id">{item.name}</span>
                       <span className="ef-tag">{ITEM_KIND_LABEL[item.kind]}</span>
@@ -383,8 +383,11 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
                       ))}
                       <span style={S.sub}>
                         {size === undefined
-                          ? '体积统计中…'
-                          : `${formatCount(size.files)} 个文件 │ ${formatBytes(size.bytes)}`}
+                          ? T.ImportPage.measuring
+                          : T.ImportPage.sizeLine(
+                              formatCount(size.files),
+                              formatBytes(size.bytes),
+                            )}
                       </span>
                     </div>
 
@@ -405,8 +408,8 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
                               disabled={!v.importable}
                               title={
                                 v.importable
-                                  ? '这个版本目录会被复制过去'
-                                  : '实例没有独立的 versions 目录，版本要在「安装」页重装'
+                                  ? T.ImportPage.versionWillCopy
+                                  : T.ImportPage.versionNoDir
                               }
                               onClick={() => {
                                 // 点版本就算选中这一项：少一次点击
@@ -415,7 +418,7 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
                               }}
                             >
                               {v.id}
-                              <span className="n">{v.loader ?? '原版'}</span>
+                              <span className="n">{v.loader ?? T.common.vanilla}</span>
                             </button>
                           );
                         })}
@@ -424,7 +427,7 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
 
                     {importable.length === 0 && item.kind !== 'game_dir' && (
                       <p style={{ ...S.sub, margin: 0 }}>
-                        实例目录里没有独立的版本目录，导入只带 mods / config；版本本身要用「安装」页重装。
+                        {T.ImportPage.noVersionDir}
                       </p>
                     )}
 
@@ -447,13 +450,13 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
 
       <section className="ef-panel" aria-labelledby="opts-h">
         <h2 id="opts-h">
-          导入内容 <small>Options</small>
+          {T.ImportPage.optionsHeading} <small>Options</small>
         </h2>
         <div style={S.options}>
           <label className="ef-setting">
             <span>
-              <b>带上 mods</b>
-              <small>复制源目录的 mods/</small>
+              <b>{T.ImportPage.optMods}</b>
+              <small>{T.ImportPage.optModsHint}</small>
             </span>
             <input
               className="ef-switch"
@@ -465,8 +468,8 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           </label>
           <label className="ef-setting">
             <span>
-              <b>带上 config</b>
-              <small>复制源目录的 config/（模组配置）</small>
+              <b>{T.ImportPage.optConfig}</b>
+              <small>{T.ImportPage.optConfigHint}</small>
             </span>
             <input
               className="ef-switch"
@@ -478,8 +481,8 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           </label>
           <label className="ef-setting">
             <span>
-              <b>带上存档</b>
-              <small>复制源目录的 saves/（存档体积通常很大）</small>
+              <b>{T.ImportPage.optSaves}</b>
+              <small>{T.ImportPage.optSavesHint}</small>
             </span>
             <input
               className="ef-switch"
@@ -491,8 +494,8 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           </label>
           <label className="ef-setting">
             <span>
-              <b>覆盖目标里的同名文件</b>
-              <small>默认关：目标已有同名版本就跳过，源目录永远不改</small>
+              <b>{T.ImportPage.optOverwrite}</b>
+              <small>{T.ImportPage.optOverwriteHint}</small>
             </span>
             <input
               className="ef-switch"
@@ -504,8 +507,8 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           </label>
           <label className="ef-setting">
             <span>
-              <b>同盘用硬链</b>
-              <small>省空间；但之后改目标里的文件会同时改到源目录</small>
+              <b>{T.ImportPage.optHardlink}</b>
+              <small>{T.ImportPage.optHardlinkHint}</small>
             </span>
             <input
               className="ef-switch"
@@ -524,8 +527,10 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
             onClick={() => void runImport()}
             disabled={running || chosen.length === 0 || !gameDir}
           >
-            导入选中项
-            {chosen.length > 0 && <span className="sub">{chosen.length} 项</span>}
+            {T.ImportPage.importSelected}
+            {chosen.length > 0 && (
+              <span className="sub">{T.ImportPage.importCount(chosen.length)}</span>
+            )}
           </button>
           <button
             className="ef-btn small"
@@ -533,20 +538,20 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
             onClick={() => void cancel()}
             disabled={!running}
           >
-            取消
+            {T.common.cancel}
           </button>
         </div>
       </section>
 
       <section className="ef-panel" aria-labelledby="run-h">
         <h2 id="run-h">
-          进度 <small>Progress</small>
+          {T.ImportPage.progressHeading} <small>Progress</small>
         </h2>
 
         <div
           className={`ef-progress${running && ratio === null ? ' is-unknown' : ''}`}
           role="progressbar"
-          aria-label="导入进度"
+          aria-label={T.ImportPage.progressAria}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
@@ -555,11 +560,11 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           <span className="ef-eyebrow">
             {running
               ? stage
-                ? `${pad2(stage.index)} / ${pad2(stage.total)} · ${stage.label}`
-                : '准备中'
+                ? T.common.stageLine(pad2(stage.index), pad2(stage.total), stage.label)
+                : T.common.preparing
               : summary
-                ? '已完成'
-                : '还没开始'}
+                ? T.ImportPage.finished
+                : T.ImportPage.notStarted}
           </span>
           <span className="ef-field">{ratio === null ? '——' : padPercent(ratio)}</span>
           <i />
@@ -567,13 +572,13 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
 
         <ul className="ef-ledger" style={{ marginTop: '0.8rem' }}>
           <li>
-            <span>已处理文件</span>
+            <span>{T.ImportPage.filesProcessed}</span>
             <span className="ef-field">
               {files ? `${formatCount(files.done)} / ${formatCount(files.total)}` : '—'}
             </span>
           </li>
           <li>
-            <span>已传输</span>
+            <span>{T.ImportPage.transferred}</span>
             <span className="ef-field">
               {files
                 ? `${formatBytes(files.bytes_done)} / ${formatBytes(files.bytes_total)}`
@@ -581,9 +586,15 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
             </span>
           </li>
           <li>
-            <span>状态</span>
+            <span>{T.common.status}</span>
             <span className="ef-field">
-              {running ? '导入中' : cancelled ? '已取消' : summary ? '完成' : '空闲'}
+              {running
+                ? T.ImportPage.statusImporting
+                : cancelled
+                  ? T.common.statusCancelled
+                  : summary
+                    ? T.common.statusDone
+                    : T.ImportPage.statusIdle}
             </span>
           </li>
         </ul>
@@ -602,43 +613,45 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
           <>
             <ul className="ef-ledger" style={{ marginTop: '0.8rem' }}>
               <li>
-                <span>导入的版本</span>
+                <span>{T.ImportPage.importedVersions}</span>
                 <span className="ef-field">
-                  {summary.versions.length > 0 ? summary.versions.join('、') : '无'}
+                  {summary.versions.length > 0 ? summary.versions.join('、') : T.common.none}
                 </span>
               </li>
               <li>
-                <span>新增文件</span>
+                <span>{T.ImportPage.newFiles}</span>
                 <span className="ef-field">
-                  {formatCount(summary.files)} 个 │ {formatBytes(summary.bytes)}
+                  {T.ImportPage.newFilesValue(
+                    formatCount(summary.files),
+                    formatBytes(summary.bytes),
+                  )}
                 </span>
               </li>
               <li>
-                <span>跳过（已存在）</span>
+                <span>{T.ImportPage.skippedExisting}</span>
                 <span className="ef-field">
-                  {summary.skipped.length > 0 ? summary.skipped.join('、') : '无'}
+                  {summary.skipped.length > 0 ? summary.skipped.join('、') : T.common.none}
                 </span>
               </li>
               <li>
-                <span>硬链 / 失败</span>
+                <span>{T.ImportPage.linksFailed}</span>
                 <span className="ef-field">
                   {summary.links} / {summary.failed}
                 </span>
               </li>
               <li>
-                <span>用时</span>
+                <span>{T.ImportPage.elapsedLabel}</span>
                 <span className="ef-field">{formatDuration(summary.duration)}</span>
               </li>
             </ul>
             {summary.skipped.length > 0 && (
-              <p className="ef-notice" data-flag="已存在" style={{ marginTop: '0.8rem' }}>
-                目标目录里已经有这些版本，按规则跳过、没有覆盖：
-                {summary.skipped.join('、')}。确实要替换的话，勾上「覆盖目标里的同名文件」再导一次。
+              <p className="ef-notice" data-flag={T.ImportPage.skippedFlag} style={{ marginTop: '0.8rem' }}>
+                {T.ImportPage.skippedNote(summary.skipped.join('、'))}
               </p>
             )}
             {summary.failed > 0 && (
-              <p className="ef-notice" data-flag="有失败" style={{ marginTop: '0.8rem' }}>
-                有 {summary.failed} 个文件没复制成功（多半是被占用或权限不足），其余文件已经就位。
+              <p className="ef-notice" data-flag={T.ImportPage.failedFlag} style={{ marginTop: '0.8rem' }}>
+                {T.ImportPage.failedNote(summary.failed)}
               </p>
             )}
           </>
@@ -647,18 +660,18 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
 
       <section className="ef-panel" aria-labelledby="probe-h">
         <h2 id="probe-h">
-          扫描明细 <small>Probes</small>
+          {T.ImportPage.probeHeading} <small>Probes</small>
         </h2>
         <p style={{ ...S.sub, margin: '0 0 0.6rem' }}>
-          每一个找过的位置都在这里：找到了写证据，没找到写原因。
+          {T.ImportPage.probeHint}
         </p>
-        {scan === null && <p className="ef-empty">还没有扫描结果。</p>}
+        {scan === null && <p className="ef-empty">{T.ImportPage.noScan}</p>}
         {scan !== null && (
           <div>
             {scan.probes.map((p) => (
               <div key={`${p.launcher}-${p.path}`} style={S.probe}>
                 <span className="ef-tag" style={p.found ? undefined : { opacity: 0.55 }}>
-                  {p.found ? '命中' : '没有'}
+                  {p.found ? T.ImportPage.probeHit : T.ImportPage.probeMiss}
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <div className="path" style={{ ...S.sub, color: 'var(--ef-ink)' }} title={p.path}>

@@ -10,7 +10,8 @@ import {
   takeExtrasRun,
   type ExtrasOptions,
 } from '../lib/extras-api';
-import { formatBytes } from '../lib/format';
+import { formatBytes, formatCount } from '../lib/format';
+import { T } from '../i18n';
 import type { Settings } from '../lib/settings';
 import { DirPicker } from './DirPicker';
 import { InstallExtras } from './InstallExtras';
@@ -92,7 +93,7 @@ export function InstallForm({
     setLoaderError(null);
     const timeout = window.setTimeout(() => {
       if (!alive) return;
-      setLoaderError('请求超过 10 秒没有返回');
+      setLoaderError(T.InstallForm.loaderTimeout);
       setLoaderLoading(false);
     }, 10_000);
     api
@@ -191,11 +192,11 @@ export function InstallForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!version) {
-      setError('未选择版本。清单加载后会自动填入最新正式版。');
+      setError(T.InstallForm.noVersion);
       return;
     }
     if (!gameDir.trim()) {
-      setError('请选择游戏目录，或点「默认目录」使用系统 .minecraft。');
+      setError(T.InstallForm.noGameDir);
       return;
     }
     setError(null);
@@ -249,10 +250,10 @@ export function InstallForm({
     <form className="ef-form setup" onSubmit={submit}>
       <div className="field">
         <div className="field-head">
-          <span id="ver-label">版本</span>
+          <span id="ver-label">{T.InstallForm.versionLabel}</span>
           {latest && (
             <small>
-              最新正式版{' '}
+              {T.InstallForm.latestRelease}{' '}
               <button
                 className="ef-chip"
                 type="button"
@@ -264,7 +265,7 @@ export function InstallForm({
             </small>
           )}
         </div>
-        <div className="ef-seg" role="radiogroup" aria-label="版本类型">
+        <div className="ef-seg" role="radiogroup" aria-label={T.InstallForm.versionTypeLabel}>
           <label>
             <input
               type="radio"
@@ -273,7 +274,7 @@ export function InstallForm({
               onChange={() => setVersionFilter('release')}
               disabled={running}
             />
-            <span>正式版</span>
+            <span>{T.InstallForm.filterRelease}</span>
           </label>
           <label>
             <input
@@ -283,11 +284,11 @@ export function InstallForm({
               onChange={() => setVersionFilter('all')}
               disabled={running}
             />
-            <span>全部（含测试版）</span>
+            <span>{T.InstallForm.filterAll}</span>
           </label>
         </div>
         {loadingVersions ? (
-          <span className="ef-skeleton line" aria-label="正在拉取版本清单" />
+          <span className="ef-skeleton line" aria-label={T.InstallForm.versionsLoading} />
         ) : (
           <div className="select-wrap">
             <VersionPicker
@@ -296,56 +297,56 @@ export function InstallForm({
               onChange={setVersion}
               disabled={running}
               loading={loadingVersions}
-              label="Minecraft 版本"
+              label={T.InstallForm.versionFieldLabel}
             />
           </div>
         )}
         {selectedIsSnapshot && (
           <small>
-            <span className="ef-chip">测试版</span> {selectedVersion?.type} │
-            这是 Mojang 的测试构建，可能不稳定；安装路径与正式版完全一致。
+            <span className="ef-chip">{T.InstallForm.snapshotBadge}</span> {selectedVersion?.type} │
+            {T.InstallForm.snapshotNote}
           </small>
         )}
       </div>
 
       {versionsError && (
-        <p className="ef-notice" data-flag="清单没拉到">
+        <p className="ef-notice" data-flag={T.InstallForm.versionsErrorFlag}>
           {versionsError}
           <button className="ef-btn small" type="button" onClick={onRetryVersions}>
-            重试
+            {T.common.retry}
           </button>
         </p>
       )}
 
       <div className="field">
-        <span id="loader-label">加载器</span>
+        <span id="loader-label">{T.InstallForm.loaderLabel}</span>
         <Select
-          label="加载器"
+          label={T.InstallForm.loaderLabel}
           value={loader}
           onChange={(v) => setLoader(v as LoaderChoice)}
           disabled={running}
           options={LOADERS.map((kind) => ({
             value: kind,
-            label: kind === 'none' ? '不安装加载器（原版）' : LOADER_LABEL[kind],
+            label: kind === 'none' ? T.InstallForm.loaderNone : LOADER_LABEL[kind],
           }))}
         />
       </div>
 
       {loader !== 'none' && (
         <div className="field">
-          <span id="lv-label">加载器版本</span>
+          <span id="lv-label">{T.InstallForm.loaderVersionLabel}</span>
           {loaderLoading ? (
-            <span className="ef-skeleton line" aria-label="正在获取加载器版本" />
+            <span className="ef-skeleton line" aria-label={T.InstallForm.loaderLoading} />
           ) : loaderError ? (
             <>
-              <p className="ef-notice" data-flag="取不到版本">
-                无法获取版本列表，将使用最新版。
+              <p className="ef-notice" data-flag={T.InstallForm.loaderErrorFlag}>
+                {T.InstallForm.loaderErrorNote}
               </p>
               <input
                 aria-labelledby="lv-label"
                 value={loaderVersion}
                 onChange={(e) => setLoaderVersion(e.target.value)}
-                placeholder="最新版"
+                placeholder={T.InstallForm.loaderVersionPlaceholder}
                 disabled={running}
               />
             </>
@@ -357,7 +358,7 @@ export function InstallForm({
                 onChange={(e) => setLoaderVersion(e.target.value)}
                 disabled={running}
               >
-                <option value="">最新版（默认）</option>
+                <option value="">{T.InstallForm.loaderLatest}</option>
                 {(loaderVersions ?? []).map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -366,13 +367,13 @@ export function InstallForm({
               </select>
             </div>
           )}
-          <small>最多显示 20 个版本，从新到旧。选「最新版」即可。</small>
+          <small>{T.InstallForm.loaderHint}</small>
         </div>
       )}
 
       <div className="field">
-        <span>下载源</span>
-        <div className="ef-seg" role="radiogroup" aria-label="下载源">
+        <span>{T.InstallForm.sourceLabel}</span>
+        <div className="ef-seg" role="radiogroup" aria-label={T.InstallForm.sourceLabel}>
           <label>
             <input
               type="radio"
@@ -381,7 +382,7 @@ export function InstallForm({
               onChange={() => setSource('official')}
               disabled={running}
             />
-            <span>官方源</span>
+            <span>{T.InstallForm.sourceOfficial}</span>
           </label>
           <label>
             <input
@@ -391,50 +392,55 @@ export function InstallForm({
               onChange={() => setSource('bmclapi')}
               disabled={running}
             />
-            <span>BMCLAPI 第三方镜像</span>
+            <span>{T.InstallForm.sourceMirror}</span>
           </label>
         </div>
         <small>
           {source === 'official'
-            ? '默认使用官方源；镜像仅用于加速，需手动开启。'
-            : '镜像仅用于依赖库、资源文件和游戏本体；版本清单与版本 JSON 仍走官方。'}
+            ? T.InstallForm.sourceHintOfficial
+            : T.InstallForm.sourceHintMirror}
         </small>
       </div>
 
       {source === 'bmclapi' && (
-        <p className="ef-notice" data-flag="第三方镜像">
-          BMCLAPI 是社区维护的第三方镜像，不是 Mojang 官方服务器。
+        <p className="ef-notice" data-flag={T.InstallForm.sourceMirrorFlag}>
+          {T.InstallForm.sourceMirrorNote}
         </p>
       )}
 
       <div className="field">
-        <span id="dir-label">游戏目录</span>
+        <span id="dir-label">{T.InstallForm.dirLabel}</span>
         <DirPicker
           value={gameDir}
           dirs={settings.dirs}
           onChange={setGameDir}
           disabled={running}
-          label="游戏目录"
+          label={T.InstallForm.dirLabel}
         />
-        <small>版本、依赖库、资源文件都装在这里。</small>
+        <small>{T.InstallForm.dirHint}</small>
       </div>
 
       <p className="ef-field preview-line" aria-live="polite">
-        {previewing && '正在估算这次要下多少…'}
+        {previewing && T.InstallForm.previewEstimating}
         {!previewing && preview && (
           <>
-            预计 {preview.files} 个文件 │ {formatBytes(preview.bytes)} │ 依赖库{' '}
-            {preview.libraries} 个 │ 资源 {preview.assets} 个 │ Java {preview.java_major}
-            {preview.java_path ? '（本机已有）' : '（需要下载）'}
+            {T.InstallForm.preview({
+              files: formatCount(preview.files),
+              bytes: formatBytes(preview.bytes),
+              libraries: preview.libraries,
+              assets: preview.assets,
+              javaMajor: preview.java_major,
+              javaLocal: Boolean(preview.java_path),
+            })}
           </>
         )}
-        {!previewing && !preview && '选择版本和目录后显示预计下载量。'}
+        {!previewing && !preview && T.InstallForm.previewEmpty}
       </p>
 
       <label className="ef-setting">
         <span>
-          <b>只装最小集合</b>
-          <small>跳过资源文件。游戏可启动，但会缺少音效和语言文件。</small>
+          <b>{T.InstallForm.skipAssetsLabel}</b>
+          <small>{T.InstallForm.skipAssetsHint}</small>
         </span>
         <input
           className="ef-switch"
@@ -448,7 +454,6 @@ export function InstallForm({
 
       <InstallExtras
         mcVersion={version}
-        mcKind={selectedVersion?.type ?? 'release'}
         loader={loader}
         gameDir={gameDir}
         running={running}
@@ -457,14 +462,15 @@ export function InstallForm({
       />
 
       <p className="field-hint">
-        并发 {settings.concurrency} · Java {settings.javaPath || '自动探测'} ·{' '}
+        {T.InstallForm.footerConcurrency(settings.concurrency)} · Java{' '}
+        {settings.javaPath || T.InstallForm.footerJavaAuto} ·{' '}
         <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-          在设置里改
+          {T.InstallForm.footerEdit}
         </button>
       </p>
 
       {error && (
-        <p className="ef-notice" data-flag="还差一步">
+        <p className="ef-notice" data-flag={T.InstallForm.errorFlag}>
           {error}
         </p>
       )}
@@ -476,10 +482,10 @@ export function InstallForm({
           aria-busy={running ? 'true' : undefined}
           disabled={running || loadingVersions || !version}
         >
-          {running ? '安装中' : '开始安装'}
+          {running ? T.InstallForm.submitRunning : T.InstallForm.submit}
         </button>
         <button className="ef-btn" type="button" onClick={onCancel} disabled={!running}>
-          取消
+          {T.common.cancel}
         </button>
       </p>
     </form>

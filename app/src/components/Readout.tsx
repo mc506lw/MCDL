@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { formatBytes, formatCount, formatDuration, formatEta, formatSpeed, pad2, padPercent } from '../lib/format';
 import { SOURCE_LABEL, LOADER_LABEL } from '../lib/types';
 import { elapsedMs, stageEta, stageRatio, type Task } from '../lib/useInstall';
+import { T } from '../i18n';
 import { StageRail } from './StageRail';
 
 /**
@@ -17,10 +18,7 @@ export function Readout({ task }: { task: Task | null }) {
     return (
       <>
         <div className="empty-box">
-          <p>
-            还没有开始安装。左边选好版本和加载器，点「开始安装」，
-            这里会出现下载速度、本阶段剩余时间，以及每个阶段的文件数和字节数。
-          </p>
+          <p>{T.Readout.empty}</p>
         </div>
       </>
     );
@@ -39,28 +37,28 @@ export function Readout({ task }: { task: Task | null }) {
     <>
       <ul className="ef-facts ef-field">
         <li>{task.req.mc_version}</li>
-        <li>{task.req.loader ? `${LOADER_LABEL[task.req.loader.kind]}${task.req.loader.loader_version ? ` ${task.req.loader.loader_version}` : ''}` : '原版'}</li>
+        <li>{task.req.loader ? `${LOADER_LABEL[task.req.loader.kind]}${task.req.loader.loader_version ? ` ${task.req.loader.loader_version}` : ''}` : T.common.vanilla}</li>
         <li>{SOURCE_LABEL[task.req.source]}</li>
         <li className="path" title={task.req.game_dir}>
-          {task.req.game_dir || '未指定目录'}
+          {task.req.game_dir || T.common.dirUnset}
         </li>
       </ul>
 
       <div className="ef-figs readouts">
         <div>
           <b>{running ? speed.value : '—'}</b>
-          <small>{running ? `${speed.unit} 下载速度` : '下载速度'}</small>
+          <small>{T.Readout.speed(running ? speed.unit : '')}</small>
         </div>
         <div>
           <b>{eta === null ? '—' : formatEta(eta)}</b>
-          <small>本阶段剩余</small>
+          <small>{T.Readout.eta}</small>
         </div>
         <div>
           <b>{measured ? formatCount(stage?.done ?? 0) : '—'}</b>
           <small>
             {measured
-              ? `已下载文件 · 共 ${formatCount(stage?.total ?? 0)}`
-              : '已下载文件（本阶段无文件数）'}
+              ? T.Readout.files(formatCount(stage?.total ?? 0))
+              : T.Readout.filesPlain}
           </small>
         </div>
       </div>
@@ -69,7 +67,7 @@ export function Readout({ task }: { task: Task | null }) {
         <div
           className={`ef-progress${measured ? '' : ' is-unknown'}`}
           role="progressbar"
-          aria-label="本阶段进度"
+          aria-label={T.Readout.progressAria}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={measured ? Math.round(ratio * 100) : undefined}
@@ -77,8 +75,12 @@ export function Readout({ task }: { task: Task | null }) {
         >
           <span className="ef-eyebrow">
             {task.total > 0
-              ? `${pad2(task.index)} / ${pad2(task.total)} · ${stage?.label || '准备中'}`
-              : '准备中'}
+              ? T.common.stageLine(
+                  pad2(task.index),
+                  pad2(task.total),
+                  stage?.label || T.common.preparing,
+                )
+              : T.common.preparing}
           </span>
           <span className="ef-field">{measured ? padPercent(ratio) : '——'}</span>
           <i />
@@ -89,29 +91,29 @@ export function Readout({ task }: { task: Task | null }) {
 
       <ul className="ef-ledger">
         <li>
-          <span>累计已传输</span>
+          <span>{T.Readout.transferred}</span>
           <span className="ef-field">{formatBytes(task.bytesDone)}</span>
         </li>
         <li>
-          <span>已用时</span>
+          <span>{T.common.elapsed}</span>
           <span className="ef-field">{formatDuration(elapsedMs(task))}</span>
         </li>
         <li>
-          <span>{task.status === 'done' ? '装好的实例' : '状态'}</span>
+          <span>{task.status === 'done' ? T.Readout.instanceDone : T.common.status}</span>
           <span className="ef-field">
             {task.report
               ? task.report.installed_version
               : running
-                ? '安装中'
+                ? T.common.statusRunning
                 : task.status === 'cancelled'
-                  ? '已取消'
-                  : '失败'}
+                  ? T.common.statusCancelled
+                  : T.common.statusFailed}
           </span>
         </li>
         <li>
-          <span>Java 运行时</span>
+          <span>{T.Readout.javaLabel}</span>
           <span className="ef-field path" title={task.report?.java ?? ''}>
-            {task.report?.java ?? (running ? '安装时自动探测' : '—')}
+            {task.report?.java ?? (running ? T.Readout.javaAuto : '—')}
           </span>
         </li>
       </ul>

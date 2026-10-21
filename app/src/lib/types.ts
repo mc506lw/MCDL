@@ -2,6 +2,8 @@
 // 这个文件是前端侧的唯一协议来源：字段名、枚举值、大小写都照 serde 的输出写，
 // 改动它等于改动协议，需要同步 docs/ARCHITECTURE.md。
 
+import { T } from '../i18n';
+
 /** 下载源。默认官方，镜像只能由用户显式选择。 */
 export type Source = 'official' | 'bmclapi';
 
@@ -100,8 +102,8 @@ export const LOADER_LABEL: Record<LoaderKind, string> = {
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {
-  official: '官方源',
-  bmclapi: 'BMCLAPI 第三方镜像',
+  official: T.types.sourceOfficial,
+  bmclapi: T.types.sourceMirror,
 };
 
 /** 磁盘上的一个已装版本，对应引擎 `installed::InstalledVersion`。 */

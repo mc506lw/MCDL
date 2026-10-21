@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import { api } from './api';
+import { T } from '../i18n';
 import type {
   InstallEvent,
   InstallReport,
@@ -85,7 +86,7 @@ function blankStage(index: number): StageEntry {
   };
 }
 
-/** 把 `task.stages` 补到 `size` 长，缺的位置留空壳，界面按 index 取。 */
+// 把 task.stages 补到 size 长，缺的位置留空壳，界面按 index 取。
 function grow(stages: StageEntry[], size: number): StageEntry[] {
   const next = stages.slice();
   for (let i = next.length; i < size; i += 1) next.push(blankStage(i + 1));
@@ -153,7 +154,7 @@ function reducer(state: InstallState, action: Action): InstallState {
             endedAt: at,
             speed: 0,
           })),
-          logs: pushLog(state.logs, action.id, 'warn', '已取消，已经下载的文件留在原处', at),
+          logs: pushLog(state.logs, action.id, 'warn', T.useInstall.cancelled, at),
         };
       }
 

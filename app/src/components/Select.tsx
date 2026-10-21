@@ -6,6 +6,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { T } from '../i18n';
+
 export interface SelectOption {
   value: string;
   label: string;
@@ -78,7 +80,7 @@ export function Select({ options, value, onChange, disabled, label, placeholder 
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onKeyDown}
       >
-        <span className="ef-select-label">{current?.label ?? placeholder ?? '请选择'}</span>
+        <span className="ef-select-label">{current?.label ?? placeholder ?? T.Select.placeholder}</span>
         <span className="ef-select-caret" aria-hidden="true" />
       </button>
 

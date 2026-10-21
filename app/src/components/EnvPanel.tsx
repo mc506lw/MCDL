@@ -1,3 +1,4 @@
+import { T } from '../i18n';
 import type { JavaRuntime } from '../lib/types';
 
 interface Props {
@@ -16,17 +17,17 @@ interface Props {
 export function EnvPanel({ java, loading, error, onRefresh, onOpenDir, gameDir }: Props) {
   return (
     <>
-      {loading && <span className="ef-skeleton line" aria-label="正在探测本机 Java" />}
+      {loading && <span className="ef-skeleton line" aria-label={T.EnvPanel.loading} />}
 
       {error && (
-        <p className="ef-notice" data-flag="探测失败">
+        <p className="ef-notice" data-flag={T.EnvPanel.errorFlag}>
           {error}
         </p>
       )}
 
       {java && java.length === 0 && !loading && (
         <p className="ef-empty">
-          本机没找到 Java。安装时会按版本需要从 Adoptium 取一份，放在游戏目录的 runtime 下。
+          {T.EnvPanel.noJava}
         </p>
       )}
 
@@ -47,21 +48,20 @@ export function EnvPanel({ java, loading, error, onRefresh, onOpenDir, gameDir }
 
       <ul className="ef-ledger">
         <li>
-          <span>游戏目录</span>
+          <span>{T.common.gameDir}</span>
           <span className="ef-field" title={gameDir}>
-            {gameDir || '未设置'}
+            {gameDir || T.EnvPanel.unset}
           </span>
         </li>
       </ul>
 
       <p className="env-note">
-        没有合适的 Java 时按版本自动取一份；官方 Adoptium 失败会改用清华镜像（第三方）取同一份
-        Temurin 构建。
+        {T.EnvPanel.note}
       </p>
 
       <p className="ef-actions" style={{ marginTop: '0.9rem' }}>
         <button className="ef-btn small" type="button" onClick={onRefresh}>
-          重新探测 Java
+          {T.EnvPanel.refresh}
         </button>
         <button
           className="ef-btn small"
@@ -69,7 +69,7 @@ export function EnvPanel({ java, loading, error, onRefresh, onOpenDir, gameDir }
           onClick={() => onOpenDir(gameDir)}
           disabled={!gameDir}
         >
-          打开游戏目录
+          {T.common.openDir}
         </button>
       </p>
     </>

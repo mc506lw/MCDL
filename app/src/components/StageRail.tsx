@@ -1,4 +1,5 @@
 import { formatCount, pad2 } from '../lib/format';
+import { T } from '../i18n';
 import type { Task } from '../lib/useInstall';
 
 /**
@@ -20,7 +21,7 @@ export function StageRail({ task }: { task: Task }) {
   const finished = task.status !== 'running';
 
   return (
-    <ol className="rail" aria-label="安装阶段">
+    <ol className="rail" aria-label={T.StageRail.ariaLabel}>
       {Array.from({ length: task.total }, (_, i) => {
         const stage = task.stages[i];
         const here = !finished && i + 1 === task.index;
@@ -29,11 +30,11 @@ export function StageRail({ task }: { task: Task }) {
         const state = here ? 'is-now' : stopped ? 'is-stop' : done ? 'is-done' : 'is-wait';
         const label = stage?.label || '—';
 
-        let fig = '待执行';
-        if (stopped) fig = '中断';
-        else if (stage?.measured) fig = `${formatCount(stage.done)} / ${formatCount(stage.total)} 文件`;
-        else if (done) fig = '已就绪';
-        else if (here) fig = '进行中';
+        let fig: string = T.StageRail.waiting;
+        if (stopped) fig = T.StageRail.stopped;
+        else if (stage?.measured) fig = T.StageRail.files(formatCount(stage.done), formatCount(stage.total));
+        else if (done) fig = T.StageRail.ready;
+        else if (here) fig = T.StageRail.running;
 
         return (
           <li key={i} className={state} aria-current={here ? 'step' : undefined}>

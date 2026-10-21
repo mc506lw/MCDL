@@ -5,9 +5,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { T } from '../i18n';
 import { api, IS_TAURI } from '../lib/api';
 import { DirPicker } from '../components/DirPicker';
-import { formatBytes, formatDate } from '../lib/format';
+import { formatBytes, formatCount, formatDate } from '../lib/format';
 import { ISOLATION_NOTICE, modsDir, modsLabel } from '../lib/isolate';
 import { loadSettings } from '../lib/settings';
 import type { InstalledVersion } from '../lib/types';
@@ -77,37 +78,39 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
     <div className="wrap">
       <header className="ef-head">
         <h1>
-          版本 <small>Versions</small>
+          {T.VersionsPage.title} <small>Versions</small>
         </h1>
       </header>
 
       <div className="versions-bar">
-        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label="游戏目录" />
+        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label={T.common.gameDir} />
         <button className="ef-btn small" type="button" onClick={reload}>
-          重新扫描
+          {T.VersionsPage.rescan}
         </button>
         <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-          管理目录
+          {T.common.manageDirs}
         </button>
       </div>
 
       {error && (
-        <p className="ef-notice" data-flag="出错">
+        <p className="ef-notice" data-flag={T.VersionsPage.errorFlag}>
           {error}
         </p>
       )}
 
       <section className="ef-panel">
         <h2>
-          已装版本{' '}
+          {T.VersionsPage.installedHeading}{' '}
           <small>
-            {items === null ? '扫描中' : `${items.length} 个 · ${formatBytes(total)}`}
+            {items === null
+              ? T.VersionsPage.scanning
+              : T.VersionsPage.count(items.length, formatBytes(total))}
           </small>
         </h2>
 
         {items !== null && items.length === 0 && (
           <p className="ef-empty">
-            这个目录里还没有任何版本。回到「安装」页选一个版本开始，装完之后它会出现在这里。
+            {T.VersionsPage.empty}
           </p>
         )}
 
@@ -117,37 +120,39 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
               <li key={v.id}>
                 <div className="version-main">
                   <span className="version-id">{v.id}</span>
-                  <span className="ef-chip">{v.loader ?? '原版'}</span>
+                  <span className="ef-chip">{v.loader ?? T.common.vanilla}</span>
                   <span className="ef-chip" title={ISOLATION_NOTICE}>
-                    {isolated ? '隔离' : '共享'}
+                    {isolated ? T.common.isolated : T.common.shared}
                   </span>
                   <span className="version-meta">
-                    {v.kind} │ {v.files} 个文件 │ {formatBytes(v.bytes)} │{' '}
-                    {v.modified
-                      ? formatDate(new Date(v.modified * 1000).toISOString())
-                      : '—'}
-                    {modsTargetOf(v.id) && <> │ 模组 {modsTargetOf(v.id)}</>}
+                    {T.VersionsPage.versionMeta(
+                      v.kind,
+                      formatCount(v.files),
+                      formatBytes(v.bytes),
+                      v.modified ? formatDate(new Date(v.modified * 1000).toISOString()) : '—',
+                    )}
+                    {modsTargetOf(v.id) && T.VersionsPage.modsSuffix(modsTargetOf(v.id) ?? '')}
                   </span>
                 </div>
 
                 <div className="version-actions">
                   {confirming === v.id ? (
                     <>
-                      <span className="version-warn">删掉？</span>
+                      <span className="version-warn">{T.VersionsPage.deleteAsk}</span>
                       <button
                         className="ef-btn small danger"
                         type="button"
                         onClick={() => remove(v.id)}
                         disabled={busy === v.id}
                       >
-                        {busy === v.id ? '删除中…' : '确认删除'}
+                        {busy === v.id ? T.VersionsPage.deleting : T.VersionsPage.confirmDelete}
                       </button>
                       <button
                         className="ef-btn small"
                         type="button"
                         onClick={() => setConfirming(null)}
                       >
-                        取消
+                        {T.common.cancel}
                       </button>
                     </>
                   ) : (
@@ -156,7 +161,7 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
                       type="button"
                       onClick={() => setConfirming(v.id)}
                     >
-                      删除
+                      {T.VersionsPage.delete}
                     </button>
                   )}
                 </div>
@@ -167,67 +172,61 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
 
         {!IS_TAURI && (
           <p className="ef-note">
-            浏览器预览用的是演示数据；装成桌面应用后这里显示真实磁盘内容。
+            {T.VersionsPage.demoNote}
           </p>
         )}
       </section>
 
       <section className="ef-panel">
         <h2>
-          版本隔离 <small>{isolated ? '开' : '关'}</small>
+          {T.VersionsPage.isolationHeading} <small>{isolated ? T.common.on : T.common.off}</small>
         </h2>
 
-        <p className="ef-notice" data-flag="给谁用">
+        <p className="ef-notice" data-flag={T.VersionsPage.noticeFlag}>
           {ISOLATION_NOTICE}
         </p>
 
         <p className="ef-lede ef-read">
-          当前设置下，新装的模组会写进{' '}
-          <code>{isolated ? 'versions/<版本id>/mods/' : 'mods/'}</code>
-          {isolated
-            ? '。每个版本一份，同目录装第二个整合包不会混。'
-            : '。所有版本共用同一份，装第二个整合包会和第一个混在一起。'}
+          {T.VersionsPage.modsTargetLead}{' '}
+          <code>{isolated ? T.VersionsPage.modsPathIsolated : T.VersionsPage.modsPathShared}</code>
+          {isolated ? T.VersionsPage.targetIsolated : T.VersionsPage.targetShared}
         </p>
 
         <p className="ef-lede ef-read">
-          这里不提供「把某个版本改成隔离」的自动迁移：根 <code>mods/</code>{' '}
-          里的文件属于哪个版本只能靠猜，搬错会静默弄坏别的实例。要换落点，重新装一次那个
-          整合包，或者按下面手动搬。
+          {T.VersionsPage.noMigration}
         </p>
 
         <ul className="ef-ledger">
           <li>
-            <span>手动迁移（推荐用支持隔离的启动器操作）</span>
-            <span className="path">
-              根 mods/ 里该版本专属的 jar → versions/&lt;版本id&gt;/mods/
-            </span>
+            <span>{T.VersionsPage.manualMigrate}</span>
+            <span className="path">{T.VersionsPage.manualMigrateValue}</span>
           </li>
           <li>
-            <span>隔离后的模组谁能读</span>
-            <span>PCL / HMCL 等支持版本隔离的启动器</span>
+            <span>{T.VersionsPage.whoReads}</span>
+            <span>{T.VersionsPage.whoReadsValue}</span>
           </li>
           <li>
-            <span>官方启动器</span>
-            <span>只读根目录的 mods/</span>
+            <span>{T.VersionsPage.officialLauncher}</span>
+            <span>{T.VersionsPage.officialReads}</span>
           </li>
         </ul>
       </section>
 
       <section className="ef-panel">
         <h2>
-          统计 <small>Summary</small>
+          {T.VersionsPage.summaryHeading} <small>Summary</small>
         </h2>
         <ul className="ef-ledger">
           <li>
-            <span>版本数</span>
+            <span>{T.VersionsPage.versionCount}</span>
             <span>{items?.length ?? '—'}</span>
           </li>
           <li>
-            <span>带加载器</span>
+            <span>{T.VersionsPage.withLoader}</span>
             <span>{loaderCount}</span>
           </li>
           <li>
-            <span>占用</span>
+            <span>{T.VersionsPage.size}</span>
             <span>{formatBytes(total)}</span>
           </li>
         </ul>

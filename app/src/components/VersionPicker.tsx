@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { T } from '../i18n';
 import { formatDate } from '../lib/format';
 import type { VersionSummary } from '../lib/types';
 
@@ -87,7 +88,7 @@ export function VersionPicker({ versions, value, onChange, disabled, loading, la
         aria-controls="version-listbox"
         autoComplete="off"
         value={open ? query : (current ? current.id : '')}
-        placeholder={loading ? '正在拉取版本清单…' : '输入版本号搜索，例如 1.21'}
+        placeholder={loading ? T.VersionPicker.loading : T.VersionPicker.placeholder}
         disabled={disabled || loading}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -100,7 +101,7 @@ export function VersionPicker({ versions, value, onChange, disabled, loading, la
 
       {open && !loading && (
         <ul id="version-listbox" role="listbox" className="version-options">
-          {filtered.length === 0 && <li className="version-option is-empty">没有匹配的版本</li>}
+          {filtered.length === 0 && <li className="version-option is-empty">{T.VersionPicker.noMatch}</li>}
           {filtered.map((item, index) => (
             <li
               key={item.id}
@@ -121,7 +122,7 @@ export function VersionPicker({ versions, value, onChange, disabled, loading, la
             </li>
           ))}
           {filtered.length === MAX_ROWS && (
-            <li className="version-option is-empty">继续输入以缩小范围…</li>
+            <li className="version-option is-empty">{T.VersionPicker.moreHint}</li>
           )}
         </ul>
       )}
