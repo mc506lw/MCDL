@@ -1194,3 +1194,360 @@ body.ef {
   color: var(--ef-on-signal);
   outline: none;
 }
+
+/* ==========================================================================
+   整合包页
+   --------------------------------------------------------------------------
+   主任务是「浏览和挑选」，所以和安装页的两栏反过来：
+   左边是结果列表（宽），右边是选中项 / 安装读数（窄、sticky）。
+   安装时右栏原地变成读数面板 —— 点「装到这个目录」和看进度是同一块地方，
+   不需要滚动去找。
+
+   规则照旧：圆角 0；强调色只做填充（当前阶段、进度条、主按钮）；
+   切角只给按钮；分区用 1px 细线；没有投影和渐变。
+   ========================================================================== */
+
+.packs-search {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* 第一行：平台切换 + 关键词 + 搜索 */
+.packs-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.packs-bar-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.packs-bar-main .ef-seg {
+  min-width: 15rem;
+}
+
+/* 第二行：筛选 + 导入 */
+.packs-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.packs-filters .field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.packs-filters .field > span {
+  font-family: var(--ef-font-ui);
+  font-stretch: var(--ef-wide);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ef-ink-2);
+}
+
+/* ---------- 两栏：列表 + 右栏 ---------- */
+
+.packs-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.packs-side {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+@media (max-width: 1120px) {
+  .packs-work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .packs-side {
+    position: static;
+  }
+
+  .packs-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .packs-bar,
+  .packs-bar-main,
+  .packs-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- 结果行：两行，不要卡片 ---------- */
+
+.packs-rows > li {
+  align-items: start;
+  padding: 0.7rem 1.15rem;
+}
+
+.packs-rows .name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.packs-rows .name b {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.packs-rows .desc {
+  margin: 0.2rem 0 0;
+  color: var(--ef-ink-2);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.packs-rows .acts {
+  align-items: center;
+}
+
+.packs-rows > li[aria-current='true'] {
+  background: var(--ef-paper);
+}
+
+.packs-rows > li[aria-current='true']::before {
+  transform: none;
+}
+
+/* ---------- 空状态：给动作，不只写一句话 ---------- */
+
+.packs-empty {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  padding: 1.4rem 0 0.4rem;
+}
+
+.packs-empty b {
+  font-size: 1rem;
+}
+
+.packs-empty p {
+  margin: 0;
+  color: var(--ef-ink-2);
+  font-size: 0.85rem;
+}
+
+.packs-empty .ef-actions {
+  margin-top: 0.2rem;
+}
+
+/* ---------- 右栏：选中项 ---------- */
+
+.packs-detail {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.packs-detail .packs-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.packs-detail .packs-sub {
+  margin: 0;
+  color: var(--ef-ink-2);
+  font-size: 0.82rem;
+}
+
+.packs-detail .packs-desc {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.packs-detail .packs-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.packs-detail .packs-actions .ef-btn {
+  width: 100%;
+}
+
+.packs-file {
+  font-family: var(--ef-font-ui);
+  font-stretch: var(--ef-wide);
+  font-size: 0.72rem;
+  color: var(--ef-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 右栏：安装读数 ---------- */
+
+.packs-readout {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.packs-readout .ef-facts {
+  margin: 0;
+  color: var(--ef-ink-2);
+}
+
+.packs-readout .ef-figs {
+  margin: 0;
+}
+
+.packs-readout .ef-figs b {
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+
+.packs-readout .ef-figs small {
+  font-size: 0.72rem;
+}
+
+.packs-readout .ef-progress {
+  margin: 0;
+}
+
+.packs-readout .ef-ledger {
+  margin: 0;
+}
+
+/* 三个阶段的轨道：直角、不能点、当前格强调色填充 */
+.packs-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ef-ink);
+}
+
+.packs-rail > li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.5rem 0.5rem;
+  border-right: 1px solid var(--ef-rule);
+  border-bottom: 1px solid var(--ef-rule);
+  min-width: 0;
+}
+
+.packs-rail > li:last-child {
+  border-right: 0;
+}
+
+.packs-rail .no {
+  font-family: var(--ef-font-ui);
+  font-stretch: var(--ef-wide);
+  font-size: 0.7rem;
+  color: var(--ef-ink-2);
+}
+
+.packs-rail .zh {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  /* 阶段名可能很长（「安装游戏本体与加载器」）：折两行比截断好认 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.packs-rail > li.is-done {
+  background: var(--ef-ink);
+  color: var(--ef-paper);
+}
+
+.packs-rail > li.is-done .no {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.packs-rail > li.is-now {
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+}
+
+.packs-rail > li.is-now .no {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.packs-rail > li.is-wait {
+  color: var(--ef-ink-2);
+}
+
+.packs-rail > li.is-stop {
+  outline: 1px dashed var(--ef-ink-2);
+  outline-offset: -1px;
+}
+
+/* 日志尾巴：等宽、只留几行 */
+.packs-log {
+  margin: 0;
+  max-height: 6.5rem;
+  overflow: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ef-rule);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--ef-ink-2);
+}
+
+/* ---------- 拖放覆盖层 ---------- */
+
+.packs-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ef-paper) 82%, transparent);
+  outline: 2px solid var(--ef-signal);
+  outline-offset: -10px;
+  pointer-events: none;
+}
+
+.packs-drop b {
+  padding: 0.6rem 1rem;
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* 导入入口在窄屏占满一行 */
+@media (max-width: 760px) {
+  .packs-filters .ef-btn {
+    width: 100%;
+  }
+}

@@ -121,6 +121,11 @@ export interface PackInstallRequest {
   source: PackSource;
   project_id: string;
   version_id?: string | null;
+  /**
+   * 本地整合包文件（`.mrpack` / CurseForge 的 `.zip`）。
+   * 填了就不走平台下载，格式由引擎按文件内容判断，`project_id` 可以为空。
+   */
+  archive?: string | null;
   /** 界面已经知道的名字，省引擎一次网络请求 */
   project_title?: string | null;
   api_key?: string | null;
@@ -723,17 +728,30 @@ export function installMock(
 ): Promise<void> {
   cancelMock();
 
+  // 本地文件导入：格式按扩展名判断（真后端按文件内容判断，错误文案也来自引擎）
+  const localArchive = (req.archive ?? '').trim();
+  const local = localArchive
+    ? {
+        name: localArchive.split(/[\\/]/).pop() || localArchive,
+        source: (/\.mrpack$/i.test(localArchive) ? 'modrinth' : 'curseforge') as PackSource,
+        // 演示数据：假装这是一个 1.20.4 + Fabric 的包
+        mc: '1.20.4',
+        loader: 'fabric' as LoaderKind,
+        mods: 24,
+        modBytes: 41_200_000,
+      }
+    : null;
+
   const pack = MOCK_PACKS.find((p) => p.hit.id === req.project_id || p.hit.slug === req.project_id);
   const version =
     pack?.versions.find((v) => v.id === req.version_id) ?? pack?.versions[0] ?? null;
 
-  const mc = version?.game_versions[0] ?? '1.21.1';
-  const loader = version?.loaders[0] ?? null;
-  const mods = version?.mods ?? 60;
-  const modBytes = version?.mod_bytes ?? 80_000_000;
+  const mc = local?.mc ?? version?.game_versions[0] ?? '1.21.1';
+  const loader = local?.loader ?? version?.loaders[0] ?? null;
+  const mods = local?.mods ?? version?.mods ?? 60;
+  const modBytes = local?.modBytes ?? version?.mod_bytes ?? 80_000_000;
   const archiveBytes = 180_000;
 
-  // 阶段 1：整合包本体
   const phases: Array<{
     label: string;
     files: number;
@@ -741,7 +759,13 @@ export function installMock(
     ms: number;
     engine?: MockStage[];
   }> = [
-    { label: T.mock.stagePack, files: 1, bytes: archiveBytes, ms: 800 },
+    {
+      label: local ? T.mock.stageRead : T.mock.stagePack,
+      files: 1,
+      bytes: local ? 0 : archiveBytes,
+      // 本地文件不用下载，阶段 1 几乎立刻走完
+      ms: local ? 320 : 800,
+    },
     {
       label: T.mock.stageEngine,
       files: 0,
@@ -793,14 +817,18 @@ export function installMock(
     window.clearInterval(timer);
     stopCurrent = null;
     const engineMs = (phases[1].engine ?? []).reduce((sum, s) => sum + s.ms, 0);
+    const packName = local?.name ?? pack?.hit.title ?? req.project_title ?? req.project_id;
+    const packVersion = local ? T.PacksPage.localFile : version?.version_number ?? '—';
     const report: PackInstallReport = {
-      source: req.source,
-      pack_id: req.project_id,
-      pack_name: pack?.hit.title ?? req.project_title ?? req.project_id,
-      pack_version: version?.version_number ?? '演示版本',
+      source: local?.source ?? req.source,
+      pack_id: local?.name ?? req.project_id,
+      pack_name: packName,
+      pack_version: packVersion,
       mc_version: mc,
       loader: loader ? `${loader} 0.16.10` : null,
       installed_version: loader ? `fabric-loader-0.16.10-${mc}` : mc,
+      mods_dir: `versions/${loader ? `fabric-loader-0.16.10-${mc}` : mc}/mods`,
+      isolated: true,
       game_dir: req.game_dir,
       pack_files: mods,
       pack_bytes: modBytes,

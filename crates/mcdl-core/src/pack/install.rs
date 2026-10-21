@@ -37,6 +37,73 @@ use super::{
 /// 整合包安装一共几步。界面拿它画进度。
 pub const PHASES: usize = 3;
 
+/// 阶段 1 的两种叫法：从平台下载，还是读本地文件。
+const STAGE_FETCH: &str = "下载整合包";
+const STAGE_READ_LOCAL: &str = "读取整合包";
+
+/// 本地压缩包是哪一种整合包。安装流程只按格式分派解析，不关心它从哪来。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackFormat {
+    Modrinth,
+    Curseforge,
+}
+
+impl PackFormat {
+    pub fn label(self) -> &'static str {
+        match self {
+            PackFormat::Modrinth => "Modrinth",
+            PackFormat::Curseforge => "CurseForge",
+        }
+    }
+
+    pub fn source(self) -> PackSource {
+        match self {
+            PackFormat::Modrinth => PackSource::Modrinth,
+            PackFormat::Curseforge => PackSource::Curseforge,
+        }
+    }
+}
+
+/// 只读地判断一个本地文件是什么格式：不下载、不写盘、不改文件。
+///
+/// 失败信息要能区分三种情况，因为用户能做的事完全不同：
+/// - 文件不存在 / 不是文件 → 路径写错了；
+/// - 打不开 zip → 下载不完整，或者根本不是压缩包；
+/// - 是 zip 但两个索引都没有 → 拿错了文件（例如把模组 jar 当整合包）。
+pub fn detect_format(archive: &std::path::Path) -> Result<PackFormat> {
+    if !archive.exists() {
+        return Err(Error::other(format!(
+            "找不到这个文件：{}",
+            archive.display()
+        )));
+    }
+    if !archive.is_file() {
+        return Err(Error::other(format!(
+            "这不是一个文件：{}",
+            archive.display()
+        )));
+    }
+    if mrpack::read_entry(archive, mrpack::INDEX_NAME)?.is_some() {
+        return Ok(PackFormat::Modrinth);
+    }
+    if mrpack::read_entry(archive, mrpack::CURSE_MANIFEST_NAME)?.is_some() {
+        return Ok(PackFormat::Curseforge);
+    }
+    Err(Error::other(format!(
+        "{} 里既没有 {}，也没有 {}，不是整合包",
+        archive.display(),
+        mrpack::INDEX_NAME,
+        mrpack::CURSE_MANIFEST_NAME
+    )))
+}
+
+fn format_of(source: PackSource) -> PackFormat {
+    match source {
+        PackSource::Modrinth => PackFormat::Modrinth,
+        PackSource::Curseforge => PackFormat::Curseforge,
+    }
+}
+
 // ---------------------------------------------------------------- 请求
 
 /// 安装一个整合包。
@@ -51,6 +118,11 @@ pub struct PackInstallRequest {
     /// 指定版本；不填取最新
     #[serde(default)]
     pub version_id: Option<String>,
+    /// 本地文件（`.mrpack` / CurseForge 的 `.zip`）。填了就不走平台下载，
+    /// 阶段 1 从「下载整合包」变成「读取整合包」，格式按文件内容判断，
+    /// 这时 `project_id` 可以为空。
+    #[serde(default)]
+    pub archive: Option<PathBuf>,
     /// 界面已经知道的名字，用来给报告和日志起标题（省一次网络请求）
     #[serde(default)]
     pub project_title: Option<String>,
@@ -87,6 +159,7 @@ impl PackInstallRequest {
             source,
             project_id: project_id.into(),
             version_id: None,
+            archive: None,
             project_title: None,
             api_key: None,
             download_source: Source::Official,
@@ -144,16 +217,20 @@ pub async fn install_pack(
     sink: &dyn PackProgressSink,
 ) -> Result<PackInstallReport> {
     let started = Instant::now();
-    if req.project_id.trim().is_empty() {
+
+    // 本地文件走「导入」，平台走「下载」。两者的阶段 2/3 完全一样，只是阶段 1 不同。
+    let local = req
+        .archive
+        .as_ref()
+        .filter(|p| !p.as_os_str().is_empty())
+        .cloned();
+    if local.is_none() && req.project_id.trim().is_empty() {
         return Err(Error::other("没有指定要装的整合包"));
     }
 
     let client = HttpClient::new()?;
     let paths = GamePaths::new(&req.game_dir);
     paths.prepare()?;
-
-    let mut warnings: Vec<String> = Vec::new();
-    let mut skipped = 0usize;
 
     // 界面已经知道名字时优先用它（省一次网络请求）；否则等索引里的名字。
     let fallback_name = req
@@ -163,65 +240,89 @@ pub async fn install_pack(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| req.project_id.clone());
 
-    // ---- 阶段 1：整合包本体
-    begin(sink, 1, "下载整合包");
-    let (version, archive) = fetch_archive(&client, req, &paths, sink).await?;
+    // ---- 阶段 1：拿到压缩包（平台下载 / 读本地文件）
+    let (format, archive, fallback_version, pack_id) = match &local {
+        Some(path) => {
+            begin(sink, 1, STAGE_READ_LOCAL);
+            let format = detect_format(path)?;
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.display().to_string());
+            sink.emit(PackProgress::Log {
+                level: LogLevel::Info,
+                message: format!("导入 {}（{}）", file_name, format.label()),
+            });
+            // 本地文件没有下载量，但界面要立刻看到阶段 1 走完。
+            sink.emit(PackProgress::Files {
+                done: 1,
+                total: 1,
+                bytes_done: 0,
+                bytes_total: 0,
+            });
+            let stem = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            (format, path.clone(), stem.clone(), stem)
+        }
+        None => {
+            begin(sink, 1, STAGE_FETCH);
+            let (version, archive) = fetch_archive(&client, req, &paths, sink).await?;
+            (
+                format_of(req.source),
+                archive,
+                version.version_number,
+                req.project_id.clone(),
+            )
+        }
+    };
 
     // ---- 读索引：依赖 + 文件清单
     //
     // 这里**不**拼下载任务：模组落点取决于版本隔离，而隔离目录里的版本 id
     // 要等加载器装完才知道（`fabric-loader-0.16.9-1.21.1` 这种）。所以先只把
     // 索引留在 `files` 里，阶段 3 再算落点、再拼任务。
-    let plan = match req.source {
-        PackSource::Modrinth => {
-            let index = mrpack::read_index(&archive)?;
-            let mc_version = index.mc_version()?;
-            let loader = index.loader_spec()?;
-            let name = if index.name.trim().is_empty() {
-                fallback_name.clone()
-            } else {
-                index.name.trim().to_string()
-            };
-            let version_text = if index.version_id.trim().is_empty() {
-                version.version_number.clone()
-            } else {
-                index.version_id.trim().to_string()
-            };
-            PackPlan {
-                name,
-                version: version_text,
-                mc_version,
-                loader,
-                files: PackFiles::Modrinth(index),
-                override_dirs: mrpack::default_override_dirs()
-                    .into_iter()
-                    .map(str::to_string)
-                    .collect(),
-            }
-        }
-        PackSource::Curseforge => {
-            let manifest = mrpack::read_curse_manifest(&archive)?;
-            let mc_version = manifest.minecraft.version.trim().to_string();
-            let loader = manifest.loader_spec()?;
-            let override_dirs = vec![manifest.overrides_dir()];
-            PackPlan {
-                name: if manifest.name.trim().is_empty() {
-                    fallback_name.clone()
-                } else {
-                    manifest.name.trim().to_string()
-                },
-                version: if manifest.version.trim().is_empty() {
-                    version.version_number.clone()
-                } else {
-                    manifest.version.trim().to_string()
-                },
-                mc_version,
-                loader,
-                files: PackFiles::Curseforge(manifest),
-                override_dirs,
-            }
-        }
+    let plan = build_plan(format, &archive, fallback_name, fallback_version)?;
+
+    let opts = RunOpts {
+        game_dir: &req.game_dir,
+        source: format.source(),
+        api_key: req.api_key.as_deref(),
+        download_source: req.download_source,
+        concurrency: req.concurrency,
+        java: req.java.as_deref(),
+        skip_assets: req.skip_assets,
+        isolated: req.isolated,
+        pack_id,
     };
+    run_plan(&client, &opts, plan, &archive, sink, started).await
+}
+
+/// 阶段 2/3 需要的一切。`install_pack` 组装它，两条入口（平台 / 本地）共用。
+struct RunOpts<'a> {
+    game_dir: &'a std::path::Path,
+    source: PackSource,
+    api_key: Option<&'a str>,
+    download_source: Source,
+    concurrency: usize,
+    java: Option<&'a std::path::Path>,
+    skip_assets: bool,
+    isolated: bool,
+    pack_id: String,
+}
+
+/// 装完「包已经拿到、索引已经解析」之后的那一段：本体 + 加载器 → 包内文件 → 覆盖。
+async fn run_plan(
+    client: &HttpClient,
+    opts: &RunOpts<'_>,
+    plan: PackPlan,
+    archive: &std::path::Path,
+    sink: &dyn PackProgressSink,
+    started: Instant,
+) -> Result<PackInstallReport> {
+    let mut warnings: Vec<String> = Vec::new();
+    let mut skipped = 0usize;
 
     sink.emit(PackProgress::Log {
         level: LogLevel::Info,
@@ -236,23 +337,17 @@ pub async fn install_pack(
             }
         ),
     });
-    for note in &warnings {
-        sink.emit(PackProgress::Log {
-            level: LogLevel::Warn,
-            message: note.clone(),
-        });
-    }
 
     // ---- 阶段 2：游戏本体 + 加载器（复用引擎）
     begin(sink, 2, "安装游戏本体与加载器");
     let base_req = InstallRequest {
-        game_dir: req.game_dir.clone(),
+        game_dir: opts.game_dir.to_path_buf(),
         mc_version: plan.mc_version.clone(),
         loader: plan.loader.clone(),
-        source: req.download_source,
-        concurrency: req.concurrency.max(1),
-        java: req.java.clone(),
-        skip_assets: req.skip_assets,
+        source: opts.download_source,
+        concurrency: opts.concurrency.max(1),
+        java: opts.java.map(|p| p.to_path_buf()),
+        skip_assets: opts.skip_assets,
     };
     let base = Installer::new()?
         .run(&base_req, &EngineSink { sink })
@@ -263,10 +358,10 @@ pub async fn install_pack(
 
     // 版本隔离的落点：加载器装完才知道 `versions/` 下的最终目录名。
     let version_id = base.installed_version.clone();
-    let mods = isolate::mods_dir(&req.game_dir, &version_id, req.isolated)?;
+    let mods = isolate::mods_dir(opts.game_dir, &version_id, opts.isolated)?;
     sink.emit(PackProgress::Log {
         level: LogLevel::Info,
-        message: if req.isolated {
+        message: if opts.isolated {
             format!(
                 "版本隔离：模组写入 {}（只有 PCL / HMCL 这类启动器会读这个目录）",
                 mods.label()
@@ -280,16 +375,20 @@ pub async fn install_pack(
     });
 
     let (jobs, dropped, mut notes) = match &plan.files {
-        PackFiles::Modrinth(index) => mrpack_jobs(index, &req.game_dir, &version_id, req.isolated)?,
-        PackFiles::Curseforge(manifest) => curseforge_jobs(&client, req, manifest, &mods).await?,
+        PackFiles::Modrinth(index) => {
+            mrpack_jobs(index, opts.game_dir, &version_id, opts.isolated)?
+        }
+        PackFiles::Curseforge(manifest) => {
+            curseforge_jobs(client, opts.api_key, manifest, &mods).await?
+        }
     };
     skipped += dropped;
     warnings.append(&mut notes);
 
     let outcome = download::run_batch(
-        &client,
+        client,
         jobs,
-        req.concurrency,
+        opts.concurrency,
         &FilesSink { sink },
         StageKind::Libraries,
     )
@@ -297,15 +396,15 @@ pub async fn install_pack(
 
     let dirs: Vec<&str> = plan.override_dirs.iter().map(String::as_str).collect();
     let overrides = mrpack::extract_overrides_isolated(
-        &archive,
-        &req.game_dir,
+        archive,
+        opts.game_dir,
         &dirs,
-        Some((&version_id, req.isolated)),
+        Some((&version_id, opts.isolated)),
     )?;
 
     let report = PackInstallReport {
-        source: req.source,
-        pack_id: req.project_id.clone(),
+        source: opts.source,
+        pack_id: opts.pack_id.clone(),
         pack_name: plan.name.clone(),
         pack_version: plan.version.clone(),
         mc_version: plan.mc_version.clone(),
@@ -313,7 +412,7 @@ pub async fn install_pack(
         installed_version: base.installed_version.clone(),
         mods_dir: mods.relative.clone(),
         isolated: mods.isolated,
-        game_dir: req.game_dir.clone(),
+        game_dir: opts.game_dir.to_path_buf(),
         pack_files: outcome.downloaded,
         pack_bytes: outcome.bytes,
         skipped: skipped + outcome.skipped,
@@ -337,6 +436,67 @@ pub async fn install_pack(
     });
 
     Ok(report)
+}
+
+/// 按格式解析索引，得到这次要装什么。
+fn build_plan(
+    format: PackFormat,
+    archive: &std::path::Path,
+    fallback_name: String,
+    fallback_version: String,
+) -> Result<PackPlan> {
+    match format {
+        PackFormat::Modrinth => {
+            let index = mrpack::read_index(archive)?;
+            let mc_version = index.mc_version()?;
+            let loader = index.loader_spec()?;
+            let name = if index.name.trim().is_empty() {
+                fallback_name
+            } else {
+                index.name.trim().to_string()
+            };
+            let version = if index.version_id.trim().is_empty() {
+                fallback_version
+            } else {
+                index.version_id.trim().to_string()
+            };
+            Ok(PackPlan {
+                name,
+                version,
+                mc_version,
+                loader,
+                files: PackFiles::Modrinth(index),
+                override_dirs: mrpack::default_override_dirs()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            })
+        }
+        PackFormat::Curseforge => {
+            let manifest = mrpack::read_curse_manifest(archive)?;
+            let mc_version = manifest.minecraft.version.trim().to_string();
+            let loader = manifest.loader_spec()?;
+            let override_dirs = vec![manifest.overrides_dir()];
+            let name = if manifest.name.trim().is_empty() {
+                fallback_name
+            } else {
+                manifest.name.trim().to_string()
+            };
+            let version = if manifest.version.trim().is_empty() {
+                fallback_version
+            } else {
+                manifest.version.trim().to_string()
+            };
+            Ok(PackPlan {
+                name,
+                version,
+                mc_version,
+                loader,
+                files: PackFiles::Curseforge(manifest),
+                override_dirs,
+            })
+        }
+    }
 }
 
 /// 解析后的一次安装计划。
@@ -474,11 +634,11 @@ fn mrpack_jobs(
 /// 搜索和看详情不需要 key 之外的任何东西。
 async fn curseforge_jobs(
     client: &HttpClient,
-    req: &PackInstallRequest,
+    api_key: Option<&str>,
     manifest: &mrpack::CurseManifest,
     mods_dir: &isolate::ModsTarget,
 ) -> Result<(Vec<DownloadJob>, usize, Vec<String>)> {
-    let key = curseforge::require_key(req.api_key.as_deref())?;
+    let key = curseforge::require_key(api_key)?;
     let mut jobs = Vec::new();
     let mut skipped = 0usize;
     let mut warnings = Vec::new();
@@ -747,6 +907,111 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// 真实安装一次，把每条进度事件按时间戳打出来。
+    ///
+    /// 这个用例的用途是回答「装的时候到底有没有进度」：如果所有事件都挤在最后
+    /// 一秒，说明引擎是装完才一次性发；如果是几秒到几十秒均匀铺开，说明引擎没问题，
+    /// 看不到进度是界面把读数画在了看不见的地方。
+    ///
+    /// 文件事件很密（每个下载块都可能触发），这里每 400 ms 采样一条，够看出在走。
+    ///
+    /// ```text
+    /// cargo test -p mcdl-core pack::install::tests::real_install_prints_progress -- --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "真实网络 + 真实安装（约 100 MB），约 20 秒"]
+    async fn real_install_prints_progress() {
+        use std::sync::Mutex;
+        use std::time::{Duration, Instant};
+
+        let started = Instant::now();
+        let last = Mutex::new(Instant::now() - Duration::from_secs(5));
+        let sink = |p: PackProgress| {
+            let at = started.elapsed().as_secs_f64();
+            // 采样式打印：400 ms 内只留一条，收尾那条（done == total）一定留。
+            let sample = |line: String| {
+                let mut last = last.lock().unwrap();
+                if last.elapsed() < Duration::from_millis(400) {
+                    return;
+                }
+                *last = Instant::now();
+                println!("[{at:>7.2}s] {line}");
+            };
+            match p {
+                PackProgress::Stage {
+                    index,
+                    total,
+                    label,
+                } => println!("[{at:>7.2}s] stage {index}/{total} {label}"),
+                PackProgress::Files {
+                    done,
+                    total,
+                    bytes_done,
+                    bytes_total,
+                } => {
+                    if done == total {
+                        println!("[{at:>7.2}s] files {done}/{total} {bytes_done}/{bytes_total} B  ← 阶段完成");
+                        *last.lock().unwrap() = Instant::now();
+                    } else {
+                        sample(format!("files {done}/{total} {bytes_done}/{bytes_total} B"));
+                    }
+                }
+                PackProgress::Log { level, message } => {
+                    println!("[{at:>7.2}s] log {level:?} {message}")
+                }
+                PackProgress::Engine { progress } => match progress {
+                    crate::types::Progress::Stage {
+                        index,
+                        total,
+                        label,
+                        ..
+                    } => println!("[{at:>7.2}s] engine stage {index}/{total} {label}"),
+                    crate::types::Progress::Files {
+                        done,
+                        total,
+                        bytes_done,
+                        bytes_total,
+                        ..
+                    } => {
+                        if done == total {
+                            println!("[{at:>7.2}s] engine files {done}/{total} {bytes_done}/{bytes_total} B  ← 阶段完成");
+                            *last.lock().unwrap() = Instant::now();
+                        } else {
+                            sample(format!(
+                                "engine files {done}/{total} {bytes_done}/{bytes_total} B"
+                            ));
+                        }
+                    }
+                    crate::types::Progress::Log { message, .. } => {
+                        println!("[{at:>7.2}s] engine log {message}")
+                    }
+                },
+            }
+        };
+
+        let dir = temp_game_dir("real-install-progress");
+        let mut req = PackInstallRequest::new(&dir, PackSource::Modrinth, "fps");
+        // 固定一个 1.20.4 + Fabric 的版本：本机 Java 17 就够，不用下运行时。
+        req.version_id = Some("BunXzEyL".into());
+        req.skip_assets = true;
+
+        let report = install_pack(&req, &sink).await.unwrap();
+        println!(
+            "\n=== 报告：{} {} · MC {} · {} · 整合包文件 {} 个 / {} B · 用时 {} ms ===",
+            report.pack_name,
+            report.pack_version,
+            report.mc_version,
+            report.loader.as_deref().unwrap_or("原版"),
+            report.pack_files,
+            report.pack_bytes,
+            report.duration_ms
+        );
+        assert!(report.pack_files > 0);
+        assert!(report.duration_ms > 3_000, "真实安装不可能 3 秒内装完");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// 临时目录：安装流程会 `create_dir_all`，测试不能往 `C:\mc` 里写。
     fn temp_game_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -759,6 +1024,147 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// 造一个只含指定条目的 zip，用来测格式识别。
+    fn temp_zip(dir: &Path, name: &str, entries: &[(&str, &[u8])]) -> PathBuf {
+        use std::io::Write as _;
+        let path = dir.join(name);
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (entry, body) in entries {
+            writer.start_file(*entry, options).unwrap();
+            writer.write_all(body).unwrap();
+        }
+        writer.finish().unwrap();
+        path
+    }
+
+    #[test]
+    fn detect_format_tells_the_two_pack_formats_apart() {
+        let dir = temp_game_dir("detect");
+        let mrpack = temp_zip(
+            &dir,
+            "a.mrpack",
+            &[(
+                mrpack::INDEX_NAME,
+                br#"{"files":[],"dependencies":{"minecraft":"1.21.1"}}"#,
+            )],
+        );
+        let cf = temp_zip(
+            &dir,
+            "b.zip",
+            &[(
+                mrpack::CURSE_MANIFEST_NAME,
+                br#"{"minecraft":{"version":"1.20.1"},"files":[]}"#,
+            )],
+        );
+        assert_eq!(detect_format(&mrpack).unwrap(), PackFormat::Modrinth);
+        assert_eq!(detect_format(&cf).unwrap(), PackFormat::Curseforge);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 拿错文件时要说清是哪一步错了，用户才知道下一步做什么。
+    #[test]
+    fn detect_format_explains_each_failure() {
+        let dir = temp_game_dir("detect-bad");
+
+        // 1) 路径不存在
+        let missing = dir.join("nope.mrpack");
+        let err = detect_format(&missing).unwrap_err().to_string();
+        assert!(err.contains("找不到这个文件"), "实际是：{err}");
+
+        // 2) 是目录不是文件
+        let folder = dir.join("folder");
+        std::fs::create_dir_all(&folder).unwrap();
+        let err = detect_format(&folder).unwrap_err().to_string();
+        assert!(err.contains("不是一个文件"), "实际是：{err}");
+
+        // 3) 不是 zip（下载不完整 / 拿错文件）
+        let broken = dir.join("broken.mrpack");
+        std::fs::write(&broken, b"not a zip at all").unwrap();
+        let err = detect_format(&broken).unwrap_err().to_string();
+        assert!(err.contains("打不开整合包压缩包"), "实际是：{err}");
+
+        // 4) 是 zip，但两个索引都没有
+        let empty = temp_zip(&dir, "empty.zip", &[("readme.txt", b"hi")]);
+        let err = detect_format(&empty).unwrap_err().to_string();
+        assert!(err.contains(mrpack::INDEX_NAME), "实际是：{err}");
+        assert!(err.contains(mrpack::CURSE_MANIFEST_NAME), "实际是：{err}");
+        assert!(err.contains("不是整合包"), "实际是：{err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 本地导入不需要 project_id；两个都没填才该报错。
+    ///
+    /// 这里用「索引里没有 minecraft 版本」的假包来停在解析阶段：
+    /// 能报出这个错，就说明已经越过了「必须给 project_id」的检查，而且不会联网。
+    #[test]
+    fn install_accepts_a_local_archive_without_a_project_id() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let dir = temp_game_dir("local-import");
+        let archive = temp_zip(
+            &dir,
+            "pack.mrpack",
+            &[(
+                mrpack::INDEX_NAME,
+                br#"{"files":[{"path":"mods/a.jar","downloads":["https://example.invalid/a.jar"]}],"dependencies":{}}"#,
+            )],
+        );
+
+        let mut req = PackInstallRequest::new(&dir, PackSource::Modrinth, "");
+        req.archive = Some(archive);
+        let err = rt
+            .block_on(install_pack(&req, &crate::pack::NullPackSink))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("minecraft"),
+            "应该停在「索引没写 minecraft 版本」，实际是：{err}"
+        );
+        assert!(
+            !err.contains("没有指定要装的整合包"),
+            "本地导入不该要求 project_id"
+        );
+
+        // 两个都空才是真错误
+        let mut empty = PackInstallRequest::new(&dir, PackSource::Modrinth, "  ");
+        empty.archive = None;
+        let err = rt
+            .block_on(install_pack(&empty, &crate::pack::NullPackSink))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("没有指定要装的整合包"), "实际是：{err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn request_carries_the_local_archive_path() {
+        let req: PackInstallRequest = serde_json::from_str(
+            r#"{
+                "game_dir": "C:/mc",
+                "source": "modrinth",
+                "project_id": "",
+                "archive": "D:/下载/pack.mrpack"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            req.archive.as_deref(),
+            Some(Path::new("D:/下载/pack.mrpack"))
+        );
+        // 老前端不传 archive 也要能反序列化
+        let req: PackInstallRequest =
+            serde_json::from_str(r#"{"game_dir":"C:/mc","source":"modrinth","project_id":"x"}"#)
+                .unwrap();
+        assert!(req.archive.is_none());
     }
 
     #[test]

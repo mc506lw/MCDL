@@ -30,3 +30,6 @@ Thumbs.db
 
 # 发版产物
 dist-release/
+
+# 视频构建产物（体积大，不入库）
+scripts/video/
