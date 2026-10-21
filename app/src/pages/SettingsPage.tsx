@@ -377,6 +377,18 @@ export function SettingsPage({
           <span>许可证</span>
           <span>MIT；界面字体 Saira（SIL OFL 1.1）</span>
         </li>
+        <li>
+          <span>交流群</span>
+          <span>
+            <a
+              href="https://qm.qq.com/q/IEiEjWiXe4"
+              target="_blank"
+              rel="noreferrer"
+            >
+              老万的 MC 技术群 · 810329264
+            </a>
+          </span>
+        </li>
       </ul>
 
       <p className="ef-lede ef-read">

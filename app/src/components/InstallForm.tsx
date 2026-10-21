@@ -14,6 +14,7 @@ import { formatBytes } from '../lib/format';
 import type { Settings } from '../lib/settings';
 import { DirPicker } from './DirPicker';
 import { InstallExtras } from './InstallExtras';
+import { Select } from './Select';
 import { VersionPicker } from './VersionPicker';
 import {
   LOADER_LABEL,
@@ -316,20 +317,16 @@ export function InstallForm({
 
       <div className="field">
         <span id="loader-label">加载器</span>
-        <div className="select-wrap">
-          <select
-            aria-labelledby="loader-label"
-            value={loader}
-            onChange={(e) => setLoader(e.target.value as LoaderChoice)}
-            disabled={running}
-          >
-            {LOADERS.map((kind) => (
-              <option key={kind} value={kind}>
-                {kind === 'none' ? '不安装加载器（原版）' : LOADER_LABEL[kind]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="加载器"
+          value={loader}
+          onChange={(v) => setLoader(v as LoaderChoice)}
+          disabled={running}
+          options={LOADERS.map((kind) => ({
+            value: kind,
+            label: kind === 'none' ? '不安装加载器（原版）' : LOADER_LABEL[kind],
+          }))}
+        />
       </div>
 
       {loader !== 'none' && (

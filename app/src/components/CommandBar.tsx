@@ -94,6 +94,23 @@ function SectionIcon({ id }: { id: Section }) {
           <path d="M4 20h16" />
         </svg>
       );
+    case 'packs':
+      // 打包的方块
+      return (
+        <svg {...common}>
+          <path d="M12 3 21 7.5v9L12 21 3 16.5v-9L12 3Z" />
+          <path d="M3 7.5 12 12l9-4.5M12 12v9" />
+        </svg>
+      );
+    case 'import':
+      // 箭头进箱子
+      return (
+        <svg {...common}>
+          <path d="M4 15v5h16v-5" />
+          <path d="M12 3v11" />
+          <path d="M7.5 9.5 12 14l4.5-4.5" />
+        </svg>
+      );
     case 'versions':
       // 层叠的版本卡片
       return (
