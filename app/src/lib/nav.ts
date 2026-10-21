@@ -7,6 +7,7 @@ import { T } from '../i18n';
 export const SECTIONS = [
   { id: 'install', zh: T.nav.s1, en: 'Install' },
   { id: 'versions', zh: T.nav.s2, en: 'Versions' },
+  { id: 'packs', zh: T.nav.s6, en: 'Modpacks' },
   { id: 'import', zh: T.nav.s5, en: 'Import' },
   { id: 'logs', zh: T.nav.s3, en: 'Logs' },
   { id: 'settings', zh: T.nav.s4, en: 'Config' },

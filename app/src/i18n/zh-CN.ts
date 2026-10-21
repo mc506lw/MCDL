@@ -183,6 +183,7 @@ export const zhCN = {
     s3: '日志', // L6
     s4: '设置', // L7
     s5: '导入',
+    s6: '整合包',
   },
 
   // ---- lib/format.ts ----

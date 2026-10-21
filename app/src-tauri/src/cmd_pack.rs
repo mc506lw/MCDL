@@ -12,11 +12,11 @@
 
 use std::sync::{Mutex, OnceLock};
 
+use mcdl_core::net::HttpClient;
 use mcdl_core::pack::{
     self, PackInstallReport, PackInstallRequest, PackProgress, PackProgressSink, PackProject,
     PackSearchQuery, PackSearchResult, PackSource, PackVersion,
 };
-use mcdl_core::net::HttpClient;
 use serde::Serialize;
 use tauri::ipc::Channel;
 
@@ -60,7 +60,9 @@ fn running() -> &'static Slot {
 #[tauri::command]
 pub async fn pack_search(query: PackSearchQuery) -> Result<PackSearchResult, String> {
     let client = HttpClient::new().map_err(|e| e.to_string())?;
-    pack::search(&client, &query).await.map_err(|e| e.to_string())
+    pack::search(&client, &query)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 整合包详情：简介、正文、许可证、支持的版本与加载器。
@@ -100,10 +102,7 @@ const VERSION_LIST_LIMIT: usize = 60;
 
 /// 开始装一个整合包。立刻返回，进度和结果都走 `on_event`。
 #[tauri::command]
-pub fn pack_install(
-    req: PackInstallRequest,
-    on_event: Channel<PackEvent>,
-) -> Result<(), String> {
+pub fn pack_install(req: PackInstallRequest, on_event: Channel<PackEvent>) -> Result<(), String> {
     let slot = running();
     let mut guard = slot.lock().map_err(|e| e.to_string())?;
     if guard.as_ref().is_some_and(|h| !h.inner().is_finished()) {

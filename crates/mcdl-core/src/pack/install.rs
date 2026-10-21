@@ -188,8 +188,7 @@ pub async fn install_pack(
             let manifest = mrpack::read_curse_manifest(&archive)?;
             let mc_version = manifest.minecraft.version.trim().to_string();
             let loader = manifest.loader_spec()?;
-            let (jobs, dropped, mut notes) =
-                curseforge_jobs(&client, req, &manifest).await?;
+            let (jobs, dropped, mut notes) = curseforge_jobs(&client, req, &manifest).await?;
             skipped += dropped;
             warnings.append(&mut notes);
             PackPlan {
@@ -360,7 +359,14 @@ async fn fetch_archive(
         size: Some(file.size).filter(|s| *s > 0),
         label: file.filename.clone(),
     };
-    download::run_batch(client, vec![job], 1, &FilesSink { sink }, StageKind::Libraries).await?;
+    download::run_batch(
+        client,
+        vec![job],
+        1,
+        &FilesSink { sink },
+        StageKind::Libraries,
+    )
+    .await?;
 
     Ok((version, dest))
 }
@@ -569,15 +575,10 @@ mod tests {
     #[ignore = "需要真实网络（会下载一个几百 KB 的 .mrpack）"]
     async fn download_and_parse_a_real_mrpack() {
         let client = HttpClient::new().unwrap();
-        let version = super::super::resolve_version(
-            &client,
-            PackSource::Modrinth,
-            "opti-mized",
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let version =
+            super::super::resolve_version(&client, PackSource::Modrinth, "opti-mized", None, None)
+                .await
+                .unwrap();
         let file = version.archive_file().cloned().expect("应该有 .mrpack");
         println!(
             "拿到版本 {} · {}（{} 字节）",
@@ -593,22 +594,33 @@ mod tests {
             size: Some(file.size),
             label: file.filename.clone(),
         };
-        download::run_batch(&client, vec![job], 1, &crate::types::NullSink, StageKind::Libraries)
-            .await
-            .unwrap();
+        download::run_batch(
+            &client,
+            vec![job],
+            1,
+            &crate::types::NullSink,
+            StageKind::Libraries,
+        )
+        .await
+        .unwrap();
         assert!(dest.exists());
 
         let index = mrpack::read_index(&dest).unwrap();
         println!(
             "索引：{} · {} 个文件 · 依赖 {:?}",
-            index.name, index.files.len(), index.dependencies
+            index.name,
+            index.files.len(),
+            index.dependencies
         );
         let mc = index.mc_version().unwrap();
         let loader = index.loader_spec().unwrap();
         println!(
             "要求 Minecraft {} / 加载器 {}",
             mc,
-            loader.as_ref().map(|l| l.display()).unwrap_or_else(|| "原版".into())
+            loader
+                .as_ref()
+                .map(|l| l.display())
+                .unwrap_or_else(|| "原版".into())
         );
 
         let (jobs, skipped, warnings) = mrpack_jobs(&index, &dir).unwrap();

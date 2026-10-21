@@ -18,6 +18,7 @@ import { InstallPage } from './pages/InstallPage';
 import { LogsPage } from './pages/LogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ImportPage } from './pages/ImportPage';
+import { PacksPage } from './pages/PacksPage';
 import { VersionsPage } from './pages/VersionsPage';
 
 export default function App() {
@@ -174,6 +175,22 @@ export default function App() {
             dirs={settings.dirs}
             onChangeDir={(dir) => saveAll(rememberDir(settings, dir))}
             onOpenSettings={() => setSection('settings')}
+          />
+        )}
+
+        {section === 'packs' && (
+          <PacksPage
+            gameDir={settings.gameDir || defaultDir}
+            dirs={settings.dirs}
+            onChangeDir={(dir) => saveAll(rememberDir(settings, dir))}
+            onOpenSettings={() => setSection('settings')}
+            concurrency={settings.concurrency}
+            javaPath={settings.javaPath}
+            skipAssets={settings.skipAssets}
+            onInstalled={(r) => {
+              saveAll(rememberDir(settings, r.game_dir));
+              toast(`已装好 ${r.pack_name} ${r.pack_version}`);
+            }}
           />
         )}
 

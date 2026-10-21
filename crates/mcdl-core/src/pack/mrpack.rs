@@ -112,11 +112,7 @@ impl ModpackIndex {
             .get("minecraft")
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::other(format!(
-                    "{INDEX_NAME} 没有声明 minecraft 版本，装不了"
-                ))
-            })
+            .ok_or_else(|| Error::other(format!("{INDEX_NAME} 没有声明 minecraft 版本，装不了")))
     }
 
     /// 这个包要的加载器。原版整合包返回 `None`。
@@ -213,10 +209,7 @@ impl CurseManifest {
             return Ok(None);
         };
         let (kind, version) = split_loader_id(&loader.id).ok_or_else(|| {
-            Error::other(format!(
-                "认不出 CurseForge 清单里的加载器：{}",
-                loader.id
-            ))
+            Error::other(format!("认不出 CurseForge 清单里的加载器：{}", loader.id))
         })?;
         Ok(Some(LoaderSpec {
             kind,
@@ -287,12 +280,8 @@ pub fn relative_path(raw: &str) -> Result<PathBuf> {
 /// 从压缩包里读一个文本条目。条目不存在返回 `Ok(None)`。
 pub fn read_entry(archive: &Path, name: &str) -> Result<Option<Vec<u8>>> {
     let file = std::fs::File::open(archive).at(archive)?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| {
-        Error::other(format!(
-            "打不开整合包压缩包（{}）：{e}",
-            archive.display()
-        ))
-    })?;
+    let mut zip = zip::ZipArchive::new(file)
+        .map_err(|e| Error::other(format!("打不开整合包压缩包（{}）：{e}", archive.display())))?;
 
     let mut entry = match zip.by_name(name) {
         Ok(entry) => entry,
@@ -366,12 +355,8 @@ pub fn parse_curse_manifest(raw: &[u8]) -> Result<CurseManifest> {
 /// 返回写入的文件数。
 pub fn extract_overrides(archive: &Path, game_dir: &Path, dirs: &[&str]) -> Result<usize> {
     let file = std::fs::File::open(archive).at(archive)?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| {
-        Error::other(format!(
-            "打不开整合包压缩包（{}）：{e}",
-            archive.display()
-        ))
-    })?;
+    let mut zip = zip::ZipArchive::new(file)
+        .map_err(|e| Error::other(format!("打不开整合包压缩包（{}）：{e}", archive.display())))?;
 
     std::fs::create_dir_all(game_dir).at(game_dir)?;
     let mut written = 0usize;
@@ -497,7 +482,11 @@ mod tests {
     #[test]
     fn file_url_skips_blank_entries() {
         let file = ModpackFile {
-            downloads: vec!["".into(), "  ".into(), "https://example.invalid/x.jar".into()],
+            downloads: vec![
+                "".into(),
+                "  ".into(),
+                "https://example.invalid/x.jar".into(),
+            ],
             ..Default::default()
         };
         assert_eq!(file.url(), Some("https://example.invalid/x.jar"));
@@ -541,7 +530,9 @@ mod tests {
 
     #[test]
     fn empty_index_is_an_error() {
-        let err = parse_index(br#"{"formatVersion":1}"#).unwrap_err().to_string();
+        let err = parse_index(br#"{"formatVersion":1}"#)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("空的"), "实际是：{err}");
     }
 
@@ -650,7 +641,10 @@ mod tests {
             let options = zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Stored);
             for (name, body) in [
-                (INDEX_NAME, &br#"{"files":[],"dependencies":{"minecraft":"1.21.1"}}"#[..]),
+                (
+                    INDEX_NAME,
+                    &br#"{"files":[],"dependencies":{"minecraft":"1.21.1"}}"#[..],
+                ),
                 ("overrides/config/a.json", &br#"{"a":1}"#[..]),
                 ("client-overrides/options.txt", &b"fov:70"[..]),
                 ("server-overrides/server.properties", &b"motd=x"[..]),
@@ -664,10 +658,12 @@ mod tests {
         }
 
         let game_dir = dir.join("game");
-        let written =
-            extract_overrides(&archive, &game_dir, &default_override_dirs()).unwrap();
+        let written = extract_overrides(&archive, &game_dir, &default_override_dirs()).unwrap();
 
-        assert_eq!(written, 2, "只该写 overrides 和 client-overrides 里的两个文件");
+        assert_eq!(
+            written, 2,
+            "只该写 overrides 和 client-overrides 里的两个文件"
+        );
         assert_eq!(
             std::fs::read_to_string(game_dir.join("config").join("a.json")).unwrap(),
             r#"{"a":1}"#
@@ -676,8 +672,14 @@ mod tests {
             std::fs::read_to_string(game_dir.join("options.txt")).unwrap(),
             "fov:70"
         );
-        assert!(!game_dir.join("server.properties").exists(), "服务端覆盖不该落盘");
-        assert!(!game_dir.join("mods").exists(), "覆盖目录之外的文件不该落盘");
+        assert!(
+            !game_dir.join("server.properties").exists(),
+            "服务端覆盖不该落盘"
+        );
+        assert!(
+            !game_dir.join("mods").exists(),
+            "覆盖目录之外的文件不该落盘"
+        );
         assert!(!game_dir.join("evil.txt").exists(), "穿越路径必须挡住");
         assert!(!game_dir.join(INDEX_NAME).exists(), "索引本身不是覆盖文件");
 

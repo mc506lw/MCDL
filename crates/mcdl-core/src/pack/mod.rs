@@ -307,17 +307,15 @@ pub async fn resolve_version(
     api_key: Option<&str>,
 ) -> crate::Result<PackVersion> {
     let list = versions(client, source, id, api_key).await?;
-    let picked = match version_id {
-        Some(want) => list
-            .iter()
-            .find(|v| v.id == want)
-            .cloned()
-            .ok_or_else(|| crate::Error::other(format!("{} 里没有版本 {want}", source.label())))?,
-        None => list
-            .first()
-            .cloned()
-            .ok_or_else(|| crate::Error::other(format!("{} 上这个整合包没有发布过版本", source.label())))?,
-    };
+    let picked =
+        match version_id {
+            Some(want) => list.iter().find(|v| v.id == want).cloned().ok_or_else(|| {
+                crate::Error::other(format!("{} 里没有版本 {want}", source.label()))
+            })?,
+            None => list.first().cloned().ok_or_else(|| {
+                crate::Error::other(format!("{} 上这个整合包没有发布过版本", source.label()))
+            })?,
+        };
     if picked.archive_file().is_none() {
         return Err(crate::Error::other(format!(
             "{} 版本「{}」没有可下载的整合包文件（可能只发布了服务端包）",
@@ -354,7 +352,9 @@ pub enum PackProgress {
         message: String,
     },
     /// 引擎（原版 + 加载器）的进度，字段原样，不改。
-    Engine { progress: Progress },
+    Engine {
+        progress: Progress,
+    },
 }
 
 /// 整合包安装的进度接收端。
@@ -414,9 +414,9 @@ impl crate::types::ProgressSink for FilesSink<'_> {
                 bytes_done,
                 bytes_total,
             }),
-            Progress::Log { level, message } => self
-                .sink
-                .emit(PackProgress::Log { level, message }),
+            Progress::Log { level, message } => {
+                self.sink.emit(PackProgress::Log { level, message })
+            }
             Progress::Stage { .. } => {}
         }
     }

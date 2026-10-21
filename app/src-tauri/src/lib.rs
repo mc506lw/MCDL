@@ -6,6 +6,7 @@
 
 mod cmd_extras;
 mod cmd_import;
+mod cmd_pack;
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -226,6 +227,11 @@ pub fn run() {
             cmd_import::import_measure,
             cmd_import::import_start,
             cmd_import::import_cancel,
+            cmd_pack::pack_search,
+            cmd_pack::pack_project,
+            cmd_pack::pack_versions,
+            cmd_pack::pack_install,
+            cmd_pack::pack_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

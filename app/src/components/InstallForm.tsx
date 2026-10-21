@@ -1,9 +1,19 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { api } from '../lib/api';
+import {
+  DEFAULT_EXTRAS,
+  hasExtrasRun,
+  rememberExtrasRun,
+  resetExtras,
+  runExtrasAfterInstall,
+  takeExtrasRun,
+  type ExtrasOptions,
+} from '../lib/extras-api';
 import { formatBytes } from '../lib/format';
 import type { Settings } from '../lib/settings';
 import { DirPicker } from './DirPicker';
+import { InstallExtras } from './InstallExtras';
 import { VersionPicker } from './VersionPicker';
 import {
   LOADER_LABEL,
@@ -54,6 +64,14 @@ export function InstallForm({
   const [skipAssets, setSkipAssets] = useState(settings.skipAssets);
   const [error, setError] = useState<string | null>(null);
 
+  // 版本清单里既有正式版也有快照。默认只看正式版，测试版要能主动切出来。
+  const [versionFilter, setVersionFilter] = useState<'release' | 'all'>('release');
+  // 附加项：Fabric API 默认勾选；OptiFine 默认不勾（只有 Forge 1.13+ 能自动装）；版本名默认留空。
+  const [extras, setExtras] = useState<ExtrasOptions>(DEFAULT_EXTRAS);
+  // 安装结束（running 变 false）后据此补附加项。待办放在 extras-api 的模块作用域里，
+  // 这样安装期间切分区再回来（组件重新挂载）也不会丢。
+  const wasRunning = useRef(false);
+
   // 换了加载器或版本，已经选的加载器版本就作废
   useEffect(() => {
     setLoaderVersion('');
@@ -99,6 +117,14 @@ export function InstallForm({
     if (!version && versions) setVersion(versions.latest.release);
   }, [versions, version]);
 
+  // 切回「正式版」时，如果当前选的是快照，就落回最新正式版——
+  // 否则列表里看不到当前项，界面上会出现一个「选着但不在列表里」的版本。
+  useEffect(() => {
+    if (versionFilter !== 'release' || !versions) return;
+    const current = versions.versions.find((v) => v.id === version);
+    if (current && current.type !== 'release') setVersion(versions.latest.release);
+  }, [versionFilter, versions, version]);
+
   // 设置里改了默认目录时同步过来（用户手动改过就不动）
   useEffect(() => {
     if (!gameDir && defaultDir) setGameDir(defaultDir);
@@ -108,6 +134,15 @@ export function InstallForm({
   const [previewing, setPreviewing] = useState(false);
 
   const latest = versions?.latest.release ?? '';
+
+  // 版本选择器只显示筛选后的列表；快照和正式版的安装路径完全一致，差别只在类型。
+  const pickableVersions = useMemo(() => {
+    const all = versions?.versions ?? [];
+    return versionFilter === 'release' ? all.filter((v) => v.type === 'release') : all;
+  }, [versions, versionFilter]);
+
+  const selectedVersion = versions?.versions.find((v) => v.id === version) ?? null;
+  const selectedIsSnapshot = Boolean(selectedVersion && selectedVersion.type !== 'release');
 
   // 版本/加载器/源/目录一变就重新估一次，让用户在点「开始安装」之前就知道代价。
   useEffect(() => {
@@ -163,7 +198,7 @@ export function InstallForm({
       return;
     }
     setError(null);
-    onStart({
+    const req: InstallRequest = {
       game_dir: gameDir.trim(),
       mc_version: version,
       loader:
@@ -178,8 +213,34 @@ export function InstallForm({
       concurrency: settings.concurrency,
       java: settings.javaPath.trim() || null,
       skip_assets: skipAssets,
+    };
+    // 记下这一轮的附加项：安装事件流不在这个组件的管辖范围内，
+    // 只能等 running 变回 false 再据此补。
+    rememberExtrasRun({
+      gameDir: req.game_dir,
+      mcVersion: req.mc_version,
+      loader: req.loader?.kind ?? null,
+      options: { ...extras, name: extras.name.trim() },
+      startedAt: Date.now(),
     });
+    resetExtras();
+    onStart(req);
   }
+
+  // 安装结束（成功 / 失败 / 取消都会走到这里）之后补齐附加项。
+  // 失败和取消时引擎侧会先确认 versions/ 下有没有这次新造的目录，没有就整段跳过。
+  useEffect(() => {
+    if (running) {
+      wasRunning.current = true;
+      return;
+    }
+    // 首次挂载且没有待办：页面刚打开，或者上一轮安装已经在别处跑完了。
+    if (!wasRunning.current && !hasExtrasRun()) return;
+    wasRunning.current = false;
+    const pending = takeExtrasRun();
+    if (!pending) return;
+    void runExtrasAfterInstall(pending);
+  }, [running]);
 
   return (
     <form className="ef-form setup" onSubmit={submit}>
@@ -200,12 +261,34 @@ export function InstallForm({
             </small>
           )}
         </div>
+        <div className="ef-seg" role="radiogroup" aria-label="版本类型">
+          <label>
+            <input
+              type="radio"
+              name="version-filter"
+              checked={versionFilter === 'release'}
+              onChange={() => setVersionFilter('release')}
+              disabled={running}
+            />
+            <span>正式版</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="version-filter"
+              checked={versionFilter === 'all'}
+              onChange={() => setVersionFilter('all')}
+              disabled={running}
+            />
+            <span>全部（含测试版）</span>
+          </label>
+        </div>
         {loadingVersions ? (
           <span className="ef-skeleton line" aria-label="正在拉取版本清单" />
         ) : (
           <div className="select-wrap">
             <VersionPicker
-              versions={versions?.versions ?? []}
+              versions={pickableVersions}
               value={version}
               onChange={setVersion}
               disabled={running}
@@ -213,6 +296,12 @@ export function InstallForm({
               label="Minecraft 版本"
             />
           </div>
+        )}
+        {selectedIsSnapshot && (
+          <small>
+            <span className="ef-chip">测试版</span> {selectedVersion?.type} │
+            这是 Mojang 的测试构建，可能不稳定；安装路径与正式版完全一致。
+          </small>
         )}
       </div>
 
@@ -357,6 +446,16 @@ export function InstallForm({
           disabled={running}
         />
       </label>
+
+      <InstallExtras
+        mcVersion={version}
+        mcKind={selectedVersion?.type ?? 'release'}
+        loader={loader}
+        gameDir={gameDir}
+        running={running}
+        options={extras}
+        onChange={setExtras}
+      />
 
       <p className="field-hint">
         并发 {settings.concurrency} · Java {settings.javaPath || '自动探测'} ·{' '}

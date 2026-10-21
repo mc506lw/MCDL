@@ -349,6 +349,17 @@ export function PacksPage({
 
   // ------------------------------------------------------------ key
 
+  /** 换平台：旧结果和旧选中都不属于这个平台了，一起清掉。 */
+  function switchSource(next: PackSource) {
+    if (next === source) return;
+    setSource(next);
+    setResult(null);
+    setSelected(null);
+    setProject(null);
+    setVersions(null);
+    setDetailError(null);
+  }
+
   function saveKey(event: FormEvent) {
     event.preventDefault();
     const next = cfDraft.trim();
@@ -597,10 +608,7 @@ export function PacksPage({
                   type="radio"
                   name="pack-source"
                   checked={source === 'modrinth'}
-                  onChange={() => {
-                    setSource('modrinth');
-                    setResult(null);
-                  }}
+                  onChange={() => switchSource('modrinth')}
                 />
                 Modrinth
               </label>
@@ -609,10 +617,7 @@ export function PacksPage({
                   type="radio"
                   name="pack-source"
                   checked={source === 'curseforge'}
-                  onChange={() => {
-                    setSource('curseforge');
-                    setResult(null);
-                  }}
+                  onChange={() => switchSource('curseforge')}
                 />
                 CurseForge
               </label>

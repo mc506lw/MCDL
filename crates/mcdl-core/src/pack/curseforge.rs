@@ -83,7 +83,12 @@ pub fn search_url(q: &PackSearchQuery) -> String {
         ("pageSize", q.page_size().to_string()),
         ("index", q.offset.to_string()),
     ];
-    if let Some(version) = q.mc_version.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    if let Some(version) = q
+        .mc_version
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         params.push(("gameVersion", version.to_string()));
     }
     if let Some(kind) = q.loader {
@@ -314,7 +319,7 @@ fn split_versions_loaders(indexes: &[FileIndexResponse]) -> (Vec<String>, Vec<St
         }
     }
     // 从新到旧：按点分段的数字比，比不出来就保持平台给的顺序。
-    game_versions.sort_by(|a, b| version_key(b).cmp(&version_key(a)));
+    game_versions.sort_by_key(|v| std::cmp::Reverse(version_key(v)));
     (game_versions, loaders)
 }
 
@@ -502,10 +507,16 @@ mod tests {
     #[test]
     fn search_url_uses_modpack_filters() {
         let url = search_url(&query());
-        assert!(url.starts_with("https://api.curseforge.com/v1/mods/search?"), "{url}");
+        assert!(
+            url.starts_with("https://api.curseforge.com/v1/mods/search?"),
+            "{url}"
+        );
         assert!(url.contains("gameId=432"), "{url}");
         assert!(url.contains("classId=4471"), "整合包的 classId：{url}");
-        assert!(url.contains("searchFilter=better+mc") || url.contains("searchFilter=better%20mc"), "{url}");
+        assert!(
+            url.contains("searchFilter=better+mc") || url.contains("searchFilter=better%20mc"),
+            "{url}"
+        );
         assert!(url.contains("sortOrder=desc"), "{url}");
     }
 
@@ -536,7 +547,11 @@ mod tests {
         .unwrap();
         let file = file_from(raw);
         assert!(!file.downloadable(), "downloadUrl 为空时不能假装能下载");
-        assert_eq!(file.sha1.as_deref(), Some("deadbeef"), "只认 algo 1（sha1）");
+        assert_eq!(
+            file.sha1.as_deref(),
+            Some("deadbeef"),
+            "只认 algo 1（sha1）"
+        );
     }
 
     #[test]

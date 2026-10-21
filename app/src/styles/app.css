@@ -725,15 +725,118 @@ body.ef {
 /* ---------- 目录选择器 ---------- */
 
 .dir-picker {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
 }
 
-.dir-picker > select,
-.dir-picker > input {
+/* 触发器：直角、细线、切掉右下角 —— 形状本身说明它可按 */
+.dir-trigger {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem calc(0.6rem + var(--ef-cut)) 0.5rem 0.6rem;
+  border: 1px solid var(--ef-ink);
+  border-radius: 0;
+  background: var(--ef-panel);
+  color: var(--ef-ink);
+  font-family: var(--ef-font-ui);
+  font-size: var(--ef-t-ui);
+  text-align: left;
+  cursor: pointer;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - var(--ef-cut)),
+    calc(100% - var(--ef-cut)) 100%,
+    0 100%
+  );
+}
+
+.dir-trigger:hover:not(:disabled) {
+  background: var(--ef-chip);
+}
+
+.dir-trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dir-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 小三角：跟着墨色走，不依赖系统箭头 */
+.dir-caret {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.75;
+}
+
+/* 展开的列表 */
+.dir-options {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--ef-panel);
+  border: 1px solid var(--ef-ink);
+}
+
+.dir-option {
+  padding: 0.45rem 0.6rem;
+  font-size: var(--ef-t-ui);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-option.is-active {
+  background: var(--ef-chip);
+}
+
+/* 当前目录用强调色填充 —— 这套设计里「黄/冰蓝块 = 你在这里」 */
+.dir-option.is-current {
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+  font-weight: 700;
+}
+
+.dir-option.is-empty {
+  color: var(--ef-ink-2);
+  cursor: default;
+  font-size: var(--ef-t-field);
+}
+
+.dir-option.is-action {
+  border-top: 1px solid var(--ef-rule);
+  color: var(--ef-ink-2);
+  font-size: var(--ef-t-field);
+}
+
+.dir-option.is-action:hover {
+  color: var(--ef-ink);
 }
 
 /* ---------- 命令栏：图标 + 中文 + 英文的三段式 ---------- */
@@ -887,4 +990,61 @@ body.ef {
 .versions-bar .dir-picker {
   flex: 1;
   min-width: 0;
+}
+
+/* ---------- 表单控件统一 ---------- */
+/* 同一个角色在四个页面里必须长一样。
+   以前只有 `.ef-form` 里面的控件有样式，设置页的 `.ctl` 是浏览器默认样式，
+   导入页又是另一种，所以"同一个输入框"在不同页面看着像两个东西。 */
+
+.app-main :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--ef-ink);
+  border-radius: 0;
+  background: var(--ef-panel);
+  color: var(--ef-ink);
+  font-family: var(--ef-font-ui);
+  font-size: var(--ef-t-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 原生下拉的系统箭头和这套设计冲突，换成自绘的小三角 */
+.app-main select {
+  appearance: none;
+  padding-right: 1.6rem;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 0.95rem) 52%, calc(100% - 0.6rem) 52%;
+  background-size: 0.32rem 0.32rem, 0.32rem 0.32rem;
+  background-repeat: no-repeat;
+}
+
+.app-main :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--ef-ink);
+  outline-offset: 1px;
+}
+
+.app-main :is(input, select, textarea):disabled {
+  opacity: 0.55;
+}
+
+.app-main input::placeholder {
+  color: var(--ef-ink-2);
+  opacity: 1;
+}
+
+/* 数字类窄输入不该占满整行 */
+.app-main .ctl.num {
+  width: 6rem;
+}
+
+/* 同一行里的按钮和输入框等高，避免高低不齐 */
+.app-main .ef-btn {
+  min-height: 2.25rem;
+}
+
+.app-main .ef-btn.small {
+  min-height: 1.95rem;
 }

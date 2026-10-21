@@ -37,14 +37,16 @@ fn api_url(path: &str, params: &[(&str, String)]) -> String {
 /// 格式是 Modrinth 文档里的「数组的数组」：外层 AND，内层 OR。
 pub fn facets(q: &PackSearchQuery) -> String {
     let mut groups: Vec<String> = vec![r#"["project_type:modpack"]"#.to_string()];
-    if let Some(version) = q.mc_version.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    if let Some(version) = q
+        .mc_version
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         groups.push(format!(r#"["versions:{}"]"#, escape_facet(version)));
     }
     if let Some(loader) = q.loader {
-        groups.push(format!(
-            r#"["categories:{}"]"#,
-            loader_facet(loader)
-        ));
+        groups.push(format!(r#"["categories:{}"]"#, loader_facet(loader)));
     }
     format!("[{}]", groups.join(","))
 }
@@ -421,8 +423,7 @@ mod tests {
         assert_eq!(text.matches('[').count(), 3, "结构不能被注入：{text}");
         assert_eq!(text.matches(']').count(), 3);
         assert_eq!(
-            text,
-            r#"[["project_type:modpack"],["versions:1.21,x:"]]"#,
+            text, r#"[["project_type:modpack"],["versions:1.21,x:"]]"#,
             "注入的部分只能变成无害的字符：{text}"
         );
     }
@@ -437,8 +438,14 @@ mod tests {
         q.offset = 24;
 
         let url = search_url(&q);
-        assert!(url.starts_with("https://api.modrinth.com/v2/search?"), "{url}");
-        assert!(url.contains("query=better+mc") || url.contains("query=better%20mc"), "{url}");
+        assert!(
+            url.starts_with("https://api.modrinth.com/v2/search?"),
+            "{url}"
+        );
+        assert!(
+            url.contains("query=better+mc") || url.contains("query=better%20mc"),
+            "{url}"
+        );
         assert!(url.contains("index=downloads"), "{url}");
         assert!(url.contains("limit=12"), "{url}");
         assert!(url.contains("offset=24"), "{url}");
@@ -534,13 +541,18 @@ mod tests {
         // 详情 + 版本：安装要用到的另外两个端点
         let slug = &result.hits[0].slug;
         let project = project(&client, slug).await.unwrap();
-        println!("项目：{} / {} / 许可 {:?}", project.title, project.slug, project.license);
+        println!(
+            "项目：{} / {} / 许可 {:?}",
+            project.title, project.slug, project.license
+        );
         assert_eq!(project.slug, *slug);
 
         let versions = versions(&client, slug).await.unwrap();
         println!("版本数 = {}", versions.len());
         let first = versions.first().expect("至少有一个版本");
-        let archive = first.archive_file().expect("最新版应该有可下载的整合包文件");
+        let archive = first
+            .archive_file()
+            .expect("最新版应该有可下载的整合包文件");
         println!(
             "最新版：{}（{}）· {} 字节 · sha1 {:?}",
             first.version_number, archive.filename, archive.size, archive.sha1

@@ -13,13 +13,14 @@
 pub mod download;
 pub mod error;
 pub mod extras;
-pub mod install;
 pub mod import;
+pub mod install;
 pub mod installed;
 pub mod java;
 pub mod loader;
 pub mod meta;
 pub mod net;
+pub mod pack;
 pub mod paths;
 pub mod types;
 
