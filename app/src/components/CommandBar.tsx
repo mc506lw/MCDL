@@ -53,7 +53,7 @@ export function CommandBar({ section, onSection, demo }: Props) {
 
       <div className="util">
         {demo && (
-          <span className="ef-state is-draft demo" title="浏览器预览用的是内置演示队列">
+          <span className="ef-state is-draft demo" title="预览模式：内置演示队列">
             演示数据
           </span>
         )}

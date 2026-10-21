@@ -157,6 +157,8 @@ export default function App() {
         {section === 'versions' && (
           <VersionsPage
             gameDir={settings.gameDir || defaultDir}
+            dirs={settings.dirs}
+            onChangeDir={(dir) => saveAll(rememberDir(settings, dir))}
             onOpenSettings={() => setSection('settings')}
           />
         )}

@@ -90,8 +90,8 @@ export function LogsPage({ logs, running, onClear }: Props) {
       {shown.length === 0 ? (
         <p className="ef-empty log-empty">
           {logs.length === 0
-            ? '还没有日志。开始一次安装之后，引擎抛出的每一条进度和错误都会按时间排在这里。'
-            : '这个级别下还没有记录。换一个筛选看看。'}
+            ? '暂无日志。开始安装后，进度和错误会显示在这里。'
+            : '此级别暂无日志。试试其他筛选。'}
         </p>
       ) : (
         <ol className="logs" aria-live={running ? 'polite' : 'off'}>

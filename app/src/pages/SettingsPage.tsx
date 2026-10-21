@@ -101,7 +101,7 @@ export function SettingsPage({
         <label className="ef-setting">
           <span>
             <b>并发下载数</b>
-            <small>同时下几个文件，1 到 64。太高会被服务器限速，反而更慢。</small>
+            <small>同时下载的文件数，1–64。过高可能被限速。</small>
           </span>
           <span className="ctl num">
             <input
@@ -117,7 +117,7 @@ export function SettingsPage({
         <label className="ef-setting">
           <span>
             <b>默认跳过资源文件</b>
-            <small>只装能启动的最小集合。装完能进游戏，但会缺音效和语言文件。</small>
+            <small>只安装启动必需文件；游戏内会缺少音效和语言文件。</small>
           </span>
           <input
             className="ef-switch"
@@ -140,7 +140,7 @@ export function SettingsPage({
         <div className="ef-setting">
           <span>
             <b>默认游戏目录</b>
-            <small>.minecraft 所在目录。留空则用系统默认的那个。</small>
+            <small>.minecraft 所在目录。留空使用系统默认目录。</small>
           </span>
           <span className="ctl wide">
             <input
@@ -164,7 +164,7 @@ export function SettingsPage({
         <div className="ef-setting">
           <span>
             <b>Java 路径</b>
-            <small>指定 javaw.exe 或 java。留空则按版本需要自动探测，探测不到再取一份。</small>
+            <small>javaw.exe 或 java 路径。留空则自动探测，必要时自动下载。</small>
           </span>
           <span className="ctl wide">
             <input

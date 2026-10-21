@@ -60,7 +60,7 @@ export function Readout({ task }: { task: Task | null }) {
           <small>
             {measured
               ? `已下载文件 · 共 ${formatCount(stage?.total ?? 0)}`
-              : '已下载文件 · 本阶段不报文件数'}
+              : '已下载文件（本阶段无文件数）'}
           </small>
         </div>
       </div>

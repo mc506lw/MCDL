@@ -6,15 +6,18 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api, IS_TAURI } from '../lib/api';
+import { DirPicker } from '../components/DirPicker';
 import { formatBytes, formatDate } from '../lib/format';
 import type { InstalledVersion } from '../lib/types';
 
 interface Props {
   gameDir: string;
+  dirs: string[];
+  onChangeDir: (dir: string) => void;
   onOpenSettings: () => void;
 }
 
-export function VersionsPage({ gameDir, onOpenSettings }: Props) {
+export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props) {
   const [items, setItems] = useState<InstalledVersion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,15 +72,18 @@ export function VersionsPage({ gameDir, onOpenSettings }: Props) {
         <h2>
           当前目录 <small>Target</small>
         </h2>
-        <p className="path" title={gameDir}>
-          {gameDir || '还没有设置游戏目录'}
-        </p>
+        <DirPicker
+          value={gameDir}
+          dirs={dirs}
+          onChange={onChangeDir}
+          label="游戏目录"
+        />
         <div className="ef-actions">
           <button className="ef-btn small" type="button" onClick={reload}>
             重新扫描
           </button>
           <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-            换目录
+            管理目录
           </button>
         </div>
       </section>

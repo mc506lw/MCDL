@@ -53,7 +53,9 @@ body.ef {
 .app-main {
   flex: 1;
   min-height: 0;
+  /* 桌面应用：内容区自己滚动，窗口本身不滚 */
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--ef-rule) transparent;
 }
@@ -62,7 +64,8 @@ body.ef {
   width: 100%;
   max-width: 100rem;
   margin-inline: auto;
-  padding: 1.5rem var(--ef-pad) 3rem;
+  /* 桌面窗口寸土寸金：上下留白收到网页的一半 */
+  padding: 1rem var(--ef-pad) 1.5rem;
 }
 
 .wrap.narrow {
@@ -694,4 +697,41 @@ body.ef {
 
 .about-list > li > :last-child {
   text-align: right;
+}
+
+/* ---------- 桌面感：页头收紧 ---------- */
+/* 网页喜欢大标题开场，桌面工具不该让标题吃掉首屏。 */
+.wrap > .ef-head h1 {
+  font-size: clamp(1.35rem, 1.6vw, 1.75rem);
+  line-height: 1.2;
+}
+
+.wrap > .ef-head p {
+  margin-top: 0.25rem;
+  font-size: var(--ef-t-ui);
+}
+
+.wrap > .ef-head {
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+/* 面板之间的间距也按桌面密度收紧 */
+.wrap > .ef-panel + .ef-panel,
+.wrap > .work + .ef-panel {
+  margin-top: 0.9rem;
+}
+
+/* ---------- 目录选择器 ---------- */
+
+.dir-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dir-picker > select,
+.dir-picker > input {
+  flex: 1;
+  min-width: 0;
 }

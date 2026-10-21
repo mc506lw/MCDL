@@ -317,7 +317,7 @@ export function defaultGameDirMock(): Promise<string> {
 }
 
 export function openGameDirMock(): Promise<void> {
-  return Promise.reject(new Error('浏览器里打不开文件管理器，装成桌面应用后可用。'));
+  return Promise.reject(new Error('浏览器无法打开文件管理器，请使用桌面版。'));
 }
 
 /** 演示用的已装版本。接真后端时这些数字都来自磁盘扫描。 */

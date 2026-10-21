@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
-import { api, IS_TAURI } from '../lib/api';
+import { api } from '../lib/api';
 import { formatBytes, formatDate } from '../lib/format';
 import type { Settings } from '../lib/settings';
+import { DirPicker } from './DirPicker';
 import {
   LOADER_LABEL,
   type InstallRequest,
@@ -150,29 +151,15 @@ export function InstallForm({
     };
   }, [version, loader, loaderVersion, source, gameDir, skipAssets, settings.concurrency, settings.javaPath]);
 
-  /** 用系统原生对话框选目录。浏览器预览里没有这个能力，按钮会自己隐藏。 */
-  async function pickDirectory() {
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const picked = await open({
-        directory: true,
-        multiple: false,
-        title: '选择 .minecraft 所在目录',
-      });
-      if (typeof picked === 'string' && picked) setGameDir(picked);
-    } catch (e) {
-      setError(`打开目录选择器失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!version) {
-      setError('还没选版本。清单拉下来之后这里会自动填上最新正式版。');
+      setError('未选择版本。清单加载后会自动填入最新正式版。');
       return;
     }
     if (!gameDir.trim()) {
-      setError('游戏目录不能空。点「默认目录」用系统的 .minecraft，或者自己填一个。');
+      setError('请选择游戏目录，或点「默认目录」使用系统 .minecraft。');
       return;
     }
     setError(null);
@@ -296,7 +283,7 @@ export function InstallForm({
               </select>
             </div>
           )}
-          <small>列表最多 20 条，从新到旧。留「最新版」就不用管。</small>
+          <small>最多显示 20 个版本，从新到旧。选「最新版」即可。</small>
         </div>
       )}
 
@@ -326,8 +313,8 @@ export function InstallForm({
         </div>
         <small>
           {source === 'official'
-            ? '默认走官方源。镜像只是加速，需要自己打开。'
-            : '版本清单和版本 JSON 仍然走官方，只有依赖库、资源文件和游戏本体走镜像。'}
+            ? '默认使用官方源；镜像仅用于加速，需手动开启。'
+            : '镜像仅用于依赖库、资源文件和游戏本体；版本清单与版本 JSON 仍走官方。'}
         </small>
       </div>
 
@@ -339,40 +326,13 @@ export function InstallForm({
 
       <div className="field">
         <span id="dir-label">游戏目录</span>
-        <div className="inline">
-          <input
-            aria-labelledby="dir-label"
-            value={gameDir}
-            onChange={(e) => setGameDir(e.target.value)}
-            placeholder=".minecraft 所在目录"
-            disabled={running}
-            spellCheck={false}
-            list="mcdl-dir-options"
-          />
-          <datalist id="mcdl-dir-options">
-            {settings.dirs.map((d) => (
-              <option key={d} value={d} />
-            ))}
-          </datalist>
-          {IS_TAURI && (
-            <button
-              className="ef-btn small"
-              type="button"
-              onClick={pickDirectory}
-              disabled={running}
-            >
-              浏览…
-            </button>
-          )}
-          <button
-            className="ef-btn small"
-            type="button"
-            onClick={() => setGameDir(defaultDir)}
-            disabled={running}
-          >
-            默认目录
-          </button>
-        </div>
+        <DirPicker
+          value={gameDir}
+          dirs={settings.dirs}
+          onChange={setGameDir}
+          disabled={running}
+          label="游戏目录"
+        />
         <small>版本、依赖库、资源文件都装在这里。</small>
       </div>
 
@@ -385,13 +345,13 @@ export function InstallForm({
             {preview.java_path ? '（本机已有）' : '（需要下载）'}
           </>
         )}
-        {!previewing && !preview && '选好版本和目录后会显示预计下载量。'}
+        {!previewing && !preview && '选择版本和目录后显示预计下载量。'}
       </p>
 
       <label className="ef-setting">
         <span>
           <b>只装最小集合</b>
-          <small>跳过资源文件。能启动，但游戏里会缺音效和语言文件。</small>
+          <small>跳过资源文件。游戏可启动，但会缺少音效和语言文件。</small>
         </span>
         <input
           className="ef-switch"
