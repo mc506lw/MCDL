@@ -682,3 +682,16 @@ body.ef {
   font-variant-numeric: tabular-nums;
   line-height: 1.7;
 }
+
+.about-list > li {
+  align-items: baseline;
+}
+
+.about-list > li > :first-child {
+  color: var(--ef-ink-2);
+  flex-shrink: 0;
+}
+
+.about-list > li > :last-child {
+  text-align: right;
+}

@@ -335,6 +335,55 @@ export function SettingsPage({
         </button>
       </p>
 
+
+      <h2 className="ef-group-head">
+        <span className="ef-pair">
+          <span className="ef-eyebrow">About</span>
+          <span>关于与合规</span>
+        </span>
+      </h2>
+
+      <p className="ef-lede ef-read">
+        MCDL 是一个安装器：从 Mojang 官方服务器取 Minecraft 的文件，按你的选择装上模组加载器。
+        它不托管游戏文件，也不提供离线绕过。
+      </p>
+
+      <ul className="ef-ledger about-list">
+        <li>
+          <span>版本</span>
+          <span>0.1.0</span>
+        </li>
+        <li>
+          <span>游戏文件来源</span>
+          <span>Mojang 官方服务器</span>
+        </li>
+        <li>
+          <span>可选的第三方镜像</span>
+          <span>BMCLAPI（社区维护，需手动开启）</span>
+        </li>
+        <li>
+          <span>Java 运行时来源</span>
+          <span>Adoptium 官方；不可达时改用清华镜像</span>
+        </li>
+        <li>
+          <span>模组加载器安装</span>
+          <span>调用 Forge / NeoForge / Fabric / Quilt 官方 installer</span>
+        </li>
+        <li>
+          <span>本机收集的数据</span>
+          <span>无</span>
+        </li>
+        <li>
+          <span>许可证</span>
+          <span>MIT；界面字体 Saira（SIL OFL 1.1）</span>
+        </li>
+      </ul>
+
+      <p className="ef-lede ef-read">
+        使用本工具获取 Minecraft 文件的前提，是你已经拥有对应的正版授权。
+        本工具不验证、也不代为保管任何账号信息。
+      </p>
+
       <h2 className="ef-group-head">
         <span className="ef-pair">
           <span className="ef-eyebrow">Danger</span>
