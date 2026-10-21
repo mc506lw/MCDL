@@ -137,26 +137,31 @@ pub async fn search(client: &HttpClient, q: &PackSearchQuery) -> Result<PackSear
     let hits = raw
         .data
         .into_iter()
-        .map(|mod_| PackHit {
-            source: PackSource::Curseforge,
-            id: mod_.id.to_string(),
-            slug: mod_.slug,
-            title: mod_.name,
-            description: mod_.summary,
-            author: mod_.authors.first().map(|a| a.name.clone()),
-            icon_url: mod_
-                .logo
-                .as_ref()
-                .and_then(|l| l.thumbnail_url.clone().or_else(|| l.url.clone()))
-                .filter(|s| !s.is_empty()),
-            downloads: mod_.download_count,
-            followers: 0,
-            categories: mod_.categories.into_iter().map(|c| c.name).collect(),
-            game_versions: Vec::new(), // 搜索响应里不带，详情/版本里有
-            loaders: Vec::new(),
-            date_modified: mod_.date_modified,
-            latest_version: mod_.latest_files.first().map(|f| f.id.to_string()),
-            license: None,
+        .map(|mod_| {
+            // 搜索响应里没有独立的版本字段，但带 `latestFilesIndexes`，
+            // 从那里能认出「最新文件支持哪些 MC 版本 / 哪些加载器」。
+            let (game_versions, loaders) = split_versions_loaders(&mod_.latest_files_indexes);
+            PackHit {
+                source: PackSource::Curseforge,
+                id: mod_.id.to_string(),
+                slug: mod_.slug,
+                title: mod_.name,
+                description: mod_.summary,
+                author: mod_.authors.first().map(|a| a.name.clone()),
+                icon_url: mod_
+                    .logo
+                    .as_ref()
+                    .and_then(|l| l.thumbnail_url.clone().or_else(|| l.url.clone()))
+                    .filter(|s| !s.is_empty()),
+                downloads: mod_.download_count,
+                followers: 0,
+                categories: mod_.categories.into_iter().map(|c| c.name).collect(),
+                game_versions,
+                loaders,
+                date_modified: mod_.date_modified,
+                latest_version: mod_.latest_files.first().map(|f| f.id.to_string()),
+                license: None,
+            }
         })
         .collect();
     Ok(PackSearchResult {
@@ -173,23 +178,7 @@ pub async fn project(client: &HttpClient, key: Option<&str>, id: &str) -> Result
     let url = api_url(&format!("/mods/{id}"), &[]);
     let raw: DataResponse<ModResponse> = get_json(client, &url, key).await?;
     let mod_ = raw.data;
-    let mut game_versions: Vec<String> = Vec::new();
-    let mut loaders: Vec<String> = Vec::new();
-    for index in &mod_.latest_files_indexes {
-        if let Some(v) = &index.game_version {
-            if looks_like_mc_version(v) && !game_versions.contains(v) {
-                game_versions.push(v.clone());
-            }
-        }
-        if let Some(loader) = &index.mod_loader {
-            let lower = loader.to_ascii_lowercase();
-            if LoaderKind::parse(&lower).is_some() && !loaders.contains(&lower) {
-                loaders.push(lower);
-            }
-        }
-    }
-    // 从新到旧：按点分段的数字比，比不出来就保持平台给的顺序。
-    game_versions.sort_by(|a, b| version_key(b).cmp(&version_key(a)));
+    let (game_versions, loaders) = split_versions_loaders(&mod_.latest_files_indexes);
     Ok(PackProject {
         source: PackSource::Curseforge,
         id: mod_.id.to_string(),
@@ -306,8 +295,7 @@ fn version_from_file(raw: FileResponse) -> PackVersion {
 }
 
 /// 版本号 → 可比较的元组（`1.21.10 > 1.21.9`，字符串比较做不到）。
-fn version_key(raw: &str) -> Vec<u32> {
-    raw.split('.')
+fn version_key(raw: &str) -> Vec<u32> {    raw.split('.')
         .map(|part| {
             let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
             digits.parse().unwrap_or(0)

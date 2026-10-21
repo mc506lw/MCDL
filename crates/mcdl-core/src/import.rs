@@ -298,7 +298,11 @@ pub fn scan(env: &ScanEnv) -> ScanResult {
             let cfg = dir.join("config.json");
             if let Some(text) = read_small_text(&cfg) {
                 for p in harvest_paths(&text) {
-                    from_config.push((p, Launcher::Pcl, "PCL 的 config.json 里记着这个目录".into()));
+                    from_config.push((
+                        p,
+                        Launcher::Pcl,
+                        "PCL 的 config.json 里记着这个目录".into(),
+                    ));
                 }
             }
         } else {
@@ -334,11 +338,7 @@ pub fn scan(env: &ScanEnv) -> ScanResult {
         });
         for raw in ini.path_values() {
             for p in split_candidates(&raw) {
-                from_config.push((
-                    p,
-                    launcher,
-                    "PCL 的 Setup.ini 里记着这个目录".to_string(),
-                ));
+                from_config.push((p, launcher, "PCL 的 Setup.ini 里记着这个目录".to_string()));
             }
         }
     }
@@ -363,7 +363,11 @@ pub fn scan(env: &ScanEnv) -> ScanResult {
                     },
                 });
                 for p in found {
-                    from_config.push((p, Launcher::Hmcl, "HMCL 的 hmcl.json 里记着这个目录".into()));
+                    from_config.push((
+                        p,
+                        Launcher::Hmcl,
+                        "HMCL 的 hmcl.json 里记着这个目录".into(),
+                    ));
                 }
             }
             None => probes.push(Probe {
@@ -543,12 +547,13 @@ fn default_game_dirs(env: &ScanEnv) -> Vec<PathBuf> {
 /// 某个启动器的配置目录可能在哪。名字不带点 / 带点两种写法都试。
 fn roots_of(env: &ScanEnv, name: &str) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
-    for base in [&env.app_data, &env.data_home, &env.local_data, &env.home] {
-        if let Some(base) = base {
-            let candidate = base.join(name);
-            if !out.iter().any(|p| norm_key(p) == norm_key(&candidate)) {
-                out.push(candidate);
-            }
+    for base in [&env.app_data, &env.data_home, &env.local_data, &env.home]
+        .into_iter()
+        .flatten()
+    {
+        let candidate = base.join(name);
+        if !out.iter().any(|p| norm_key(p) == norm_key(&candidate)) {
+            out.push(candidate);
         }
     }
     out
@@ -566,10 +571,8 @@ fn instance_roots(env: &ScanEnv) -> Vec<(PathBuf, Launcher, ItemKind)> {
         ("PrismLauncher", Launcher::Prism, ItemKind::PrismInstance),
         ("MultiMC", Launcher::MultiMc, ItemKind::MultiMcInstance),
     ] {
-        for base in [&env.app_data, &env.data_home] {
-            if let Some(base) = base {
-                push(base.join(name).join("instances"), launcher, kind);
-            }
+        for base in [&env.app_data, &env.data_home].into_iter().flatten() {
+            push(base.join(name).join("instances"), launcher, kind);
         }
         if let Some(home) = &env.home {
             push(
@@ -667,26 +670,23 @@ fn scan_instances(root: &Path, launcher: Launcher, kind: ItemKind) -> Vec<Import
             });
 
         let mut versions = list_versions(&game_dir);
-        let mut evidence = vec![format!(
-            "{} 的 instances 目录里的实例",
-            launcher.label()
-        )];
+        let mut evidence = vec![format!("{} 的 instances 目录里的实例", launcher.label())];
         if let Some((mc, loader)) = read_mmc_pack(&pack) {
-            evidence.push(format!("mmc-pack.json 声明：{mc}{}", match &loader {
-                Some(l) => format!(" / {l}"),
-                None => String::new(),
-            }));
+            evidence.push(format!(
+                "mmc-pack.json 声明：{mc}{}",
+                match &loader {
+                    Some(l) => format!(" / {l}"),
+                    None => String::new(),
+                }
+            ));
             if versions.is_empty() {
                 // 实例没有独立的 versions 目录：这一条只用来显示「它是什么版本」，
-                // 导入时不会被复制（importable = false）。
-                let loader_name = loader.clone();
+                // 导入时不会被复制（importable = false）。id 只放 MC 版本号，
+                // 加载器在 loader 字段里，界面并排显示，不重复。
                 versions.push(ImportVersion {
-                    id: match (&loader_name, &mc) {
-                        (Some(l), mc) => format!("{mc} · {l}"),
-                        (None, mc) => mc.clone(),
-                    },
+                    id: mc.clone(),
                     kind: "instance".to_string(),
-                    loader: loader_name,
+                    loader: loader.clone(),
                     importable: false,
                 });
             }
@@ -1404,15 +1404,10 @@ fn copy_one(src: &Path, dst: &Path, hardlink: bool) -> std::io::Result<(u64, boo
     if let Some(parent) = dst.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    if hardlink {
-        match std::fs::hard_link(src, dst) {
-            Ok(()) => {
-                let bytes = std::fs::metadata(dst).map(|m| m.len()).unwrap_or(0);
-                return Ok((bytes, true));
-            }
-            // 跨卷、文件系统不支持硬链：退回复制，不算失败。
-            Err(_) => {}
-        }
+    // 跨卷、文件系统不支持硬链：退回复制，不算失败。
+    if hardlink && std::fs::hard_link(src, dst).is_ok() {
+        let bytes = std::fs::metadata(dst).map(|m| m.len()).unwrap_or(0);
+        return Ok((bytes, true));
     }
     let bytes = std::fs::copy(src, dst)?;
     Ok((bytes, false))
@@ -1525,7 +1520,10 @@ fn text_files_in(dir: &Path, limit: usize) -> Vec<PathBuf> {
                 && p.extension()
                     .map(|x| {
                         let x = x.to_string_lossy().to_ascii_lowercase();
-                        matches!(x.as_str(), "json" | "config" | "ini" | "xml" | "cfg" | "txt")
+                        matches!(
+                            x.as_str(),
+                            "json" | "config" | "ini" | "xml" | "cfg" | "txt"
+                        )
                     })
                     .unwrap_or(false)
         })
@@ -1549,10 +1547,8 @@ mod tests {
             use std::sync::atomic::AtomicUsize;
             static SEQ: AtomicUsize = AtomicUsize::new(0);
             let n = SEQ.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
-                "mcdl-import-{tag}-{}-{n}",
-                std::process::id()
-            ));
+            let path =
+                std::env::temp_dir().join(format!("mcdl-import-{tag}-{}-{n}", std::process::id()));
             let _ = std::fs::remove_dir_all(&path);
             std::fs::create_dir_all(&path).expect("建临时目录");
             Self(path)
@@ -1593,7 +1589,10 @@ mod tests {
     /// 造一个能认出来的版本目录。
     fn fake_version(game_dir: &Path, id: &str, main_class: &str) {
         write(
-            &game_dir.join("versions").join(id).join(format!("{id}.json")),
+            &game_dir
+                .join("versions")
+                .join(id)
+                .join(format!("{id}.json")),
             &format!(r#"{{"id":"{id}","type":"release","mainClass":"{main_class}"}}"#),
         );
     }
@@ -1685,12 +1684,19 @@ mod tests {
             ),
         );
         fake_version(&mc, "1.21.1", "net.minecraft.client.main.Main");
-        fake_version(&other, "1.20.1", "net.fabricmc.loader.impl.launch.knot.KnotClient");
+        fake_version(
+            &other,
+            "1.20.1",
+            "net.fabricmc.loader.impl.launch.knot.KnotClient",
+        );
 
         let result = scan(&env);
         let paths: Vec<String> = result.items.iter().map(|i| norm_key(&i.path)).collect();
         assert!(paths.contains(&norm_key(&mc)), "默认目录要在：{paths:?}");
-        assert!(paths.contains(&norm_key(&other)), "ini 里的目录要在：{paths:?}");
+        assert!(
+            paths.contains(&norm_key(&other)),
+            "ini 里的目录要在：{paths:?}"
+        );
 
         let item = result
             .items
@@ -1721,8 +1727,16 @@ mod tests {
             "[Setup]\nEdition=PCLCE\nLaunchFolderSelect:0=\n",
         );
         let result = scan(&env);
-        let item = result.items.iter().find(|i| i.kind == ItemKind::GameDir).unwrap();
-        assert!(item.launchers.contains(&Launcher::PclCe), "{:?}", item.launchers);
+        let item = result
+            .items
+            .iter()
+            .find(|i| i.kind == ItemKind::GameDir)
+            .unwrap();
+        assert!(
+            item.launchers.contains(&Launcher::PclCe),
+            "{:?}",
+            item.launchers
+        );
         assert_eq!(Launcher::PclCe.label(), "PCL CE");
     }
 
@@ -1875,7 +1889,10 @@ mod tests {
             .join("PrismLauncher")
             .join("instances");
         let inst = instances.join("1.20.1 Fabric");
-        write(&inst.join("instance.cfg"), "name=我的整合包\nInstanceType=OneSix\n");
+        write(
+            &inst.join("instance.cfg"),
+            "name=我的整合包\nInstanceType=OneSix\n",
+        );
         write(
             &inst.join("mmc-pack.json"),
             r#"{"formatVersion":1,"components":[
@@ -1896,10 +1913,14 @@ mod tests {
         assert_eq!(item.main_launcher(), Launcher::Prism);
         assert!(item.has_mods);
         assert_eq!(item.versions.len(), 1);
-        assert_eq!(item.versions[0].id, "1.20.1 · Fabric 0.15.11");
+        assert_eq!(item.versions[0].id, "1.20.1");
+        assert_eq!(item.versions[0].loader.as_deref(), Some("Fabric 0.15.11"));
         assert!(!item.versions[0].importable, "实例没有独立版本目录");
         assert_eq!(item.game_dir, inst.join("minecraft"));
-        assert!(result.probes.iter().any(|p| p.launcher == Launcher::Prism && p.found));
+        assert!(result
+            .probes
+            .iter()
+            .any(|p| p.launcher == Launcher::Prism && p.found));
     }
 
     #[test]
@@ -1919,7 +1940,11 @@ mod tests {
             &inst.join("mmc-pack.json"),
             r#"{"components":[{"uid":"net.minecraft","version":"1.8.9"}]}"#,
         );
-        fake_version(&inst.join("minecraft"), "1.8.9", "net.minecraft.client.main.Main");
+        fake_version(
+            &inst.join("minecraft"),
+            "1.8.9",
+            "net.minecraft.client.main.Main",
+        );
 
         let result = scan(&env);
         let item = result
@@ -1946,7 +1971,9 @@ mod tests {
             home: Some(tmp.path().join("home")),
         };
         let linux = tmp.path().join("home/.minecraft");
-        let macos = tmp.path().join("home/Library/Application Support/minecraft");
+        let macos = tmp
+            .path()
+            .join("home/Library/Application Support/minecraft");
         for mc in [&linux, &macos] {
             mkdir(&mc.join("versions"));
         }
@@ -2048,7 +2075,10 @@ mod tests {
         assert!(dst.join("mods/sodium.jar").is_file());
         assert!(dst.join("mods/lib/extra.jar").is_file());
         assert!(dst.join("config/sodium.toml").is_file());
-        assert!(!dst.join("saves/world/level.dat").exists(), "没勾 saves 就不该搬");
+        assert!(
+            !dst.join("saves/world/level.dat").exists(),
+            "没勾 saves 就不该搬"
+        );
 
         // 源目录原封不动
         assert_eq!(
@@ -2095,9 +2125,11 @@ mod tests {
         req.overwrite = true;
         let report = import(&req, &NullSink, &cancel_token()).unwrap();
         assert_eq!(report.versions, vec!["1.21.1".to_string()]);
-        assert!(std::fs::read_to_string(dst.join("versions/1.21.1/1.21.1.json"))
-            .unwrap()
-            .contains("mainClass"));
+        assert!(
+            std::fs::read_to_string(dst.join("versions/1.21.1/1.21.1.json"))
+                .unwrap()
+                .contains("mainClass")
+        );
     }
 
     #[test]
@@ -2129,7 +2161,7 @@ mod tests {
                 ImportProgress::Files { done, total, .. } => Some((*done, *total)),
                 _ => None,
             })
-            .last()
+            .next_back()
             .expect("要有文件进度");
         assert_eq!(last_files.0, last_files.1, "进度要走到头");
         assert!(last_files.1 >= 4);

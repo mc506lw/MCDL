@@ -96,22 +96,30 @@ pub async fn search(client: &HttpClient, q: &PackSearchQuery) -> Result<PackSear
     let hits = raw
         .hits
         .into_iter()
-        .map(|hit| PackHit {
-            source: PackSource::Modrinth,
-            id: hit.project_id,
-            slug: hit.slug,
-            title: hit.title,
-            description: hit.description,
-            author: non_empty(hit.author),
-            icon_url: hit.icon_url.filter(|s| !s.is_empty()),
-            downloads: hit.downloads,
-            followers: hit.follows,
-            categories: hit.categories,
-            game_versions: hit.versions,
-            loaders: Vec::new(), // 由界面从 categories 里认（见 PackHit::loaders_from_categories）
-            date_modified: hit.date_modified,
-            latest_version: hit.latest_version,
-            license: hit.license,
+        .map(|hit| {
+            // 搜索接口不给独立的 loaders 字段，加载器名混在 categories 里。
+            let loaders = super::PackHit {
+                categories: hit.categories.clone(),
+                ..Default::default()
+            }
+            .loaders_from_categories();
+            PackHit {
+                source: PackSource::Modrinth,
+                id: hit.project_id,
+                slug: hit.slug,
+                title: hit.title,
+                description: hit.description,
+                author: non_empty(hit.author),
+                icon_url: hit.icon_url.filter(|s| !s.is_empty()),
+                downloads: hit.downloads,
+                followers: hit.follows,
+                categories: hit.categories,
+                game_versions: hit.versions,
+                loaders,
+                date_modified: hit.date_modified,
+                latest_version: hit.latest_version,
+                license: hit.license,
+            }
         })
         .collect();
     Ok(PackSearchResult {

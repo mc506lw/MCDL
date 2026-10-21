@@ -246,7 +246,7 @@ const MOCK_SCAN: ImportScan = {
       path: `${MOCK_ROOT}\\PrismLauncher\\instances\\1.20.1 Fabric`,
       game_dir: `${MOCK_ROOT}\\PrismLauncher\\instances\\1.20.1 Fabric\\minecraft`,
       versions: [
-        { id: '1.20.1 · Fabric 0.15.11', kind: 'instance', loader: 'Fabric 0.15.11', importable: false },
+        { id: '1.20.1', kind: 'instance', loader: 'Fabric 0.15.11', importable: false },
       ],
       has_mods: true,
       has_config: true,
@@ -387,6 +387,7 @@ function startMock(
       message: `目标里已经有版本 ${skippedVersions.join('、')}，跳过（不覆盖）`,
     });
   }
+  emit({ type: 'log', level: 'info', message: `${source} → ${req.target}` });
 
   const finish = () => {
     if (finished) return;
@@ -423,7 +424,6 @@ function startMock(
       total = 260 + ((index * 173) % 800);
       bytesTotal = total * 42_000;
       emit({ type: 'stage', index: index + 1, total: stages.length, label });
-      emit({ type: 'log', level: 'info', message: `${source} → ${req.target}` });
     }
 
     const raw = Math.min(1, (now - stageStarted) / stageMs);

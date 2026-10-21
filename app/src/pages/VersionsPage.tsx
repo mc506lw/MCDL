@@ -63,30 +63,17 @@ export function VersionsPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Pro
         <h1>
           版本 <small>Versions</small>
         </h1>
-        <p>
-          这个目录里已经装好的东西。删一个版本只删它自己的目录，共享的库和资源不动。
-        </p>
       </header>
 
-      <section className="ef-panel">
-        <h2>
-          当前目录 <small>Target</small>
-        </h2>
-        <DirPicker
-          value={gameDir}
-          dirs={dirs}
-          onChange={onChangeDir}
-          label="游戏目录"
-        />
-        <div className="ef-actions">
-          <button className="ef-btn small" type="button" onClick={reload}>
-            重新扫描
-          </button>
-          <button className="ef-btn small" type="button" onClick={onOpenSettings}>
-            管理目录
-          </button>
-        </div>
-      </section>
+      <div className="versions-bar">
+        <DirPicker value={gameDir} dirs={dirs} onChange={onChangeDir} label="游戏目录" />
+        <button className="ef-btn small" type="button" onClick={reload}>
+          重新扫描
+        </button>
+        <button className="ef-btn small" type="button" onClick={onOpenSettings}>
+          管理目录
+        </button>
+      </div>
 
       {error && (
         <p className="ef-notice" data-flag="出错">

@@ -368,7 +368,8 @@ export function PacksPage({
   const chosenVersion = versions?.find((v) => v.id === versionId) ?? versions?.[0] ?? null;
   const activeCounts =
     install?.phase?.index === 2 ? (install.engine?.files ?? null) : (install?.files ?? null);
-  const ratio = ratioOf(activeCounts);
+  // 装完了就是 100%：这时候没有「本阶段」了，不能退化成不知道进度的走格条。
+  const ratio = install?.status === 'done' ? 1 : ratioOf(activeCounts);
   const percent = ratio === null ? '——' : padPercent(ratio);
   const total = result?.total ?? 0;
 
@@ -409,6 +410,172 @@ export function PacksPage({
           </div>
         )}
       </section>
+
+      {install && (
+        <section className="ef-panel hero">
+          <h2>
+            安装进度{' '}
+            <small>
+              {install.status === 'running'
+                ? 'Running'
+                : install.status === 'done'
+                  ? 'Done'
+                  : install.status === 'cancelled'
+                    ? 'Cancelled'
+                    : 'Failed'}
+            </small>
+          </h2>
+
+          <ul className="ef-facts ef-field">
+            <li>{install.report?.pack_name ?? selected?.title ?? '整合包'}</li>
+            <li>{install.report?.pack_version ?? chosenVersion?.version_number ?? '—'}</li>
+            <li>{install.report?.mc_version ?? chosenVersion?.game_versions[0] ?? '—'}</li>
+            <li className="path" title={gameDir}>
+              {gameDir || '未指定目录'}
+            </li>
+          </ul>
+
+          <div
+            className={`ef-progress${ratio === null ? ' is-unknown' : ''}`}
+            role="progressbar"
+            aria-label="整合包安装进度"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
+            style={ratio === null ? undefined : ({ '--p': ratio } as CSSProperties)}
+          >
+            <span className="ef-eyebrow">
+              {install.phase
+                ? `${pad2(install.phase.index)} / ${pad2(install.phase.total)} · ${install.phase.label}`
+                : '准备中'}
+            </span>
+            <span className="ef-field">{percent}</span>
+            <i />
+          </div>
+
+          {install.engine && (
+            <p className="ef-note" style={{ marginTop: '0.5rem' }}>
+              引擎：{pad2(install.engine.index)} / {pad2(install.engine.total)} ·{' '}
+              {install.engine.label}
+              {install.engine.files && install.engine.files.total > 0
+                ? `（${formatCount(install.engine.files.done)} / ${formatCount(install.engine.files.total)} 个文件）`
+                : ''}
+            </p>
+          )}
+
+          <ul className="ef-ledger">
+            <li>
+              <span>本阶段已传输</span>
+              <span className="ef-field">
+                {activeCounts ? formatBytes(activeCounts.bytesDone) : '—'}
+              </span>
+            </li>
+            <li>
+              <span>已用时</span>
+              <span className="ef-field">
+                {install.status === 'running'
+                  ? `${((Date.now() - install.startedAt) / 1000).toFixed(1)} s`
+                  : install.report
+                    ? `${(install.report.duration_ms / 1000).toFixed(1)} s`
+                    : '—'}
+              </span>
+            </li>
+            <li>
+              <span>状态</span>
+              <span className="ef-field">
+                {install.status === 'running'
+                  ? '安装中'
+                  : install.status === 'done'
+                    ? '完成'
+                    : install.status === 'cancelled'
+                      ? '已取消'
+                      : '失败'}
+              </span>
+            </li>
+            {install.report && (
+              <>
+                <li>
+                  <span>装好的版本</span>
+                  <span className="ef-field">{install.report.installed_version}</span>
+                </li>
+                <li>
+                  <span>整合包文件</span>
+                  <span className="ef-field">
+                    {install.report.pack_files} 个 · {formatBytes(install.report.pack_bytes)}
+                  </span>
+                </li>
+                <li>
+                  <span>覆盖文件 / 跳过</span>
+                  <span className="ef-field">
+                    {install.report.overrides} / {install.report.skipped}
+                  </span>
+                </li>
+              </>
+            )}
+          </ul>
+
+          {install.error && (
+            <p className="ef-notice" data-flag="安装失败">
+              {install.error}
+            </p>
+          )}
+
+          {install.report && install.report.warnings.length > 0 && (
+            <div className="ef-notice" data-flag="注意">
+              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                {install.report.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {(install.status === 'running' || (install.report && IS_TAURI)) && (
+            <div className="ef-actions">
+              {install.status === 'running' && (
+                <button
+                  className="ef-btn small danger"
+                  type="button"
+                  onClick={() => void cancelInstall()}
+                >
+                  取消安装
+                </button>
+              )}
+              {install.report && IS_TAURI && (
+                <button
+                  className="ef-btn small"
+                  type="button"
+                  onClick={() =>
+                    void api.openGameDir(install.report?.game_dir ?? gameDir).catch(() => undefined)
+                  }
+                >
+                  打开游戏目录
+                </button>
+              )}
+            </div>
+          )}
+
+          {install.logs.length > 0 && (
+            <pre
+              className="mono"
+              style={{
+                margin: '0.7rem 0 0',
+                maxHeight: '12rem',
+                overflow: 'auto',
+                fontSize: '0.75rem',
+                whiteSpace: 'pre-wrap',
+                borderTop: '1px solid var(--ef-rule)',
+                paddingTop: '0.5rem',
+              }}
+            >
+              {install.logs
+                .slice(-16)
+                .map((line) => `${line.level === 'warn' ? '! ' : line.level === 'error' ? '× ' : '· '}${line.message}`)
+                .join('\n')}
+            </pre>
+          )}
+        </section>
+      )}
 
       <section className="ef-panel">
         <h2>
@@ -721,150 +888,6 @@ export function PacksPage({
                 {project.body}
               </p>
             </details>
-          )}
-        </section>
-      )}
-
-      {install && (
-        <section className="ef-panel hero">
-          <h2>
-            安装进度{' '}
-            <small>
-              {install.status === 'running'
-                ? 'Running'
-                : install.status === 'done'
-                  ? 'Done'
-                  : install.status === 'cancelled'
-                    ? 'Cancelled'
-                    : 'Failed'}
-            </small>
-          </h2>
-
-          <div
-            className={`ef-progress${ratio === null ? ' is-unknown' : ''}`}
-            role="progressbar"
-            aria-label="整合包安装进度"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
-            style={ratio === null ? undefined : ({ '--p': ratio } as CSSProperties)}
-          >
-            <span className="ef-eyebrow">
-              {install.phase
-                ? `${pad2(install.phase.index)} / ${pad2(install.phase.total)} · ${install.phase.label}`
-                : '准备中'}
-            </span>
-            <span className="ef-field">{percent}</span>
-            <i />
-          </div>
-
-          {install.engine && (
-            <p className="ef-note" style={{ marginTop: '0.5rem' }}>
-              引擎：{pad2(install.engine.index)} / {pad2(install.engine.total)} ·{' '}
-              {install.engine.label}
-              {install.engine.files && install.engine.files.total > 0
-                ? `（${formatCount(install.engine.files.done)} / ${formatCount(install.engine.files.total)} 个文件）`
-                : ''}
-            </p>
-          )}
-
-          <ul className="ef-ledger">
-            <li>
-              <span>本阶段已传输</span>
-              <span className="ef-field">
-                {activeCounts ? formatBytes(activeCounts.bytesDone) : '—'}
-              </span>
-            </li>
-            <li>
-              <span>已用时</span>
-              <span className="ef-field">
-                {install.status === 'running'
-                  ? `${((Date.now() - install.startedAt) / 1000).toFixed(1)} s`
-                  : install.report
-                    ? `${(install.report.duration_ms / 1000).toFixed(1)} s`
-                    : '—'}
-              </span>
-            </li>
-            <li>
-              <span>状态</span>
-              <span className="ef-field">
-                {install.status === 'running'
-                  ? '安装中'
-                  : install.status === 'done'
-                    ? '完成'
-                    : install.status === 'cancelled'
-                      ? '已取消'
-                      : '失败'}
-              </span>
-            </li>
-            {install.report && (
-              <>
-                <li>
-                  <span>装好的版本</span>
-                  <span className="ef-field">{install.report.installed_version}</span>
-                </li>
-                <li>
-                  <span>整合包文件</span>
-                  <span className="ef-field">
-                    {install.report.pack_files} 个 · {formatBytes(install.report.pack_bytes)}
-                  </span>
-                </li>
-                <li>
-                  <span>覆盖文件 / 跳过</span>
-                  <span className="ef-field">
-                    {install.report.overrides} / {install.report.skipped}
-                  </span>
-                </li>
-              </>
-            )}
-          </ul>
-
-          {install.error && (
-            <p className="ef-notice" data-flag="安装失败">
-              {install.error}
-            </p>
-          )}
-
-          {install.report && install.report.warnings.length > 0 && (
-            <div className="ef-notice" data-flag="注意">
-              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                {install.report.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {install.report && IS_TAURI && (
-            <div className="ef-actions">
-              <button
-                className="ef-btn small"
-                type="button"
-                onClick={() => void api.openGameDir(install.report?.game_dir ?? gameDir).catch(() => undefined)}
-              >
-                打开游戏目录
-              </button>
-            </div>
-          )}
-
-          {install.logs.length > 0 && (
-            <pre
-              className="mono"
-              style={{
-                margin: '0.7rem 0 0',
-                maxHeight: '12rem',
-                overflow: 'auto',
-                fontSize: '0.75rem',
-                whiteSpace: 'pre-wrap',
-                borderTop: '1px solid var(--ef-rule)',
-                paddingTop: '0.5rem',
-              }}
-            >
-              {install.logs
-                .slice(-16)
-                .map((line) => `${line.level === 'warn' ? '! ' : line.level === 'error' ? '× ' : '· '}${line.message}`)
-                .join('\n')}
-            </pre>
           )}
         </section>
       )}

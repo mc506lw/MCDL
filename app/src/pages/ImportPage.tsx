@@ -544,13 +544,13 @@ export function ImportPage({ gameDir, dirs, onChangeDir, onOpenSettings }: Props
         </h2>
 
         <div
-          className={`ef-progress${ratio === null ? ' is-unknown' : ''}`}
+          className={`ef-progress${running && ratio === null ? ' is-unknown' : ''}`}
           role="progressbar"
           aria-label="导入进度"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
-          style={ratio === null ? undefined : ({ '--p': ratio } as CSSProperties)}
+          style={{ '--p': ratio ?? 0 } as CSSProperties}
         >
           <span className="ef-eyebrow">
             {running

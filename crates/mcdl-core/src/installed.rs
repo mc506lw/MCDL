@@ -68,7 +68,12 @@ pub fn list(game_dir: &Path) -> Result<Vec<InstalledVersion>> {
         out.push(InstalledVersion {
             kind: str_of(&json, "type").unwrap_or_default(),
             main_class: str_of(&json, "mainClass").unwrap_or_default(),
-            loader: detect_loader(&id, &json),
+            loader: detect_from_libraries(&json)
+                .map(|(name, ver)| match ver {
+                    Some(v) => format!("{name} {v}"),
+                    None => name,
+                })
+                .or_else(|| detect_loader(&id, &json)),
             id,
             bytes,
             files,
@@ -121,10 +126,46 @@ fn str_of(json: &serde_json::Value, key: &str) -> Option<String> {
     json.get(key)?.as_str().map(str::to_owned)
 }
 
-/// 从目录名和 `mainClass` 里认加载器。
+/// 从版本 JSON 的 `libraries` 里认加载器，返回 `(名字, 版本号)`。
 ///
-/// 目录名是首选依据（各 installer 的命名稳定），`mainClass` 只做兜底——
-/// 因为它会随加载器大版本变化。
+/// 这是**唯一权威的依据**：加载器一定会在 libraries 里留下自己的坐标，
+/// 而目录名可以随便改（用户自定义版本名、整合包自带名字都不可信）。
+fn detect_from_libraries(json: &serde_json::Value) -> Option<(String, Option<String>)> {
+    let libs = json.get("libraries")?.as_array()?;
+
+    // 顺序有意义：neoforge 的坐标里也可能出现 forge 字样，先判 neo。
+    const RULES: [(&str, &str); 5] = [
+        ("net.neoforged:neoforge:", "NeoForge"),
+        ("net.neoforged:forge:", "NeoForge"),
+        ("net.fabricmc:fabric-loader:", "Fabric"),
+        ("org.quiltmc:quilt-loader:", "Quilt"),
+        ("net.minecraftforge:forge:", "Forge"),
+    ];
+
+    for lib in libs {
+        let Some(name) = lib.get("name").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        for (prefix, label) in RULES {
+            if let Some(rest) = name.strip_prefix(prefix) {
+                // `group:artifact:version[:classifier]`
+                let version = rest.split(':').next().filter(|v| !v.is_empty());
+                return Some((label.to_string(), version.map(str::to_owned)));
+            }
+        }
+        // OptiFine 作为库出现时（PCL / HMCL 装的实例常见）
+        if name.to_ascii_lowercase().contains("optifine") {
+            let version = name.rsplit(':').next().filter(|v| !v.is_empty());
+            return Some(("OptiFine".to_string(), version.map(str::to_owned)));
+        }
+    }
+    None
+}
+
+/// 兜底：从目录名和 `mainClass` 里猜。
+///
+/// 只在 `libraries` 里找不到加载器坐标时才用——它不可靠（名字可以随便改），
+/// 但比"认成原版"强。
 fn detect_loader(id: &str, json: &serde_json::Value) -> Option<String> {
     let lower = id.to_ascii_lowercase();
     for (needle, name) in [
@@ -212,6 +253,34 @@ mod tests {
             Some("NeoForge")
         );
         assert_eq!(detect_loader("1.21.1", &empty), None);
+    }
+
+    #[test]
+    fn detects_loader_from_libraries_not_from_name() {
+        // 用户把版本改名成 `我的整合包` 之后，目录名完全没有加载器线索，
+        // 只有 libraries 里的坐标是可信的。
+        let json = serde_json::json!({
+            "id": "我的整合包",
+            "libraries": [
+                {"name": "net.minecraft:client:1.21.1"},
+                {"name": "net.fabricmc:fabric-loader:0.19.5"}
+            ]
+        });
+        assert_eq!(
+            detect_from_libraries(&json),
+            Some(("Fabric".to_string(), Some("0.19.5".to_string())))
+        );
+    }
+
+    #[test]
+    fn neoforge_wins_over_forge_prefix() {
+        let json = serde_json::json!({
+            "libraries": [{"name": "net.neoforged:neoforge:21.1.264"}]
+        });
+        assert_eq!(
+            detect_from_libraries(&json),
+            Some(("NeoForge".to_string(), Some("21.1.264".to_string())))
+        );
     }
 
     #[test]

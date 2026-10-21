@@ -870,3 +870,21 @@ body.ef {
   background: var(--ef-panel);
   border-top: 1px solid var(--ef-rule);
 }
+
+/* ---------- 版本页：目录工具栏 ---------- */
+/* 一个路径不值得占一整块面板，做成一行工具条。 */
+
+.versions-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  margin-bottom: 0.6rem;
+  border-top: 1px solid var(--ef-rule);
+  border-bottom: 1px solid var(--ef-rule);
+}
+
+.versions-bar .dir-picker {
+  flex: 1;
+  min-width: 0;
+}
