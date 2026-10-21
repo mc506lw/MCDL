@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CommandBar } from './components/CommandBar';
 import { api, IS_TAURI } from './lib/api';
 import { toast, wireReadouts, wireTheme } from './lib/fx';
-import type { Section } from './lib/nav';
+import { SECTIONS, type Section } from './lib/nav';
 import {
   DEFAULT_SETTINGS,
   clearSettings,
@@ -21,6 +21,19 @@ import { VersionsPage } from './pages/VersionsPage';
 
 export default function App() {
   const [section, setSection] = useState<Section>('install');
+
+  // 桌面习惯：Ctrl+1…4 直接切分区。鼠标之外总得有一条更快的路。
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!event.ctrlKey || event.altKey || event.metaKey) return;
+      const index = Number(event.key);
+      if (!Number.isInteger(index) || index < 1 || index > SECTIONS.length) return;
+      event.preventDefault();
+      setSection(SECTIONS[index - 1].id);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const install = useInstall();
 
   const [settings, setSettings] = useState<Settings>(loadSettings);

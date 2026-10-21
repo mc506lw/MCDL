@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { api } from '../lib/api';
-import { formatBytes, formatDate } from '../lib/format';
+import { formatBytes } from '../lib/format';
 import type { Settings } from '../lib/settings';
 import { DirPicker } from './DirPicker';
+import { VersionPicker } from './VersionPicker';
 import {
   LOADER_LABEL,
   type InstallRequest,
@@ -106,7 +107,6 @@ export function InstallForm({
   const [preview, setPreview] = useState<InstallPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
-  const releases = versions?.versions.filter((v) => v.type === 'release') ?? [];
   const latest = versions?.latest.release ?? '';
 
   // 版本/加载器/源/目录一变就重新估一次，让用户在点「开始安装」之前就知道代价。
@@ -204,19 +204,14 @@ export function InstallForm({
           <span className="ef-skeleton line" aria-label="正在拉取版本清单" />
         ) : (
           <div className="select-wrap">
-            <select
-              aria-labelledby="ver-label"
+            <VersionPicker
+              versions={versions?.versions ?? []}
               value={version}
-              onChange={(e) => setVersion(e.target.value)}
+              onChange={setVersion}
               disabled={running}
-            >
-              {releases.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.id}
-                  {item.releaseTime ? ` · ${formatDate(item.releaseTime)}` : ''}
-                </option>
-              ))}
-            </select>
+              loading={loadingVersions}
+              label="Minecraft 版本"
+            />
           </div>
         )}
       </div>

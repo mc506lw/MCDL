@@ -735,3 +735,138 @@ body.ef {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- 命令栏：图标 + 中文 + 英文的三段式 ---------- */
+/* 只有文字的小 tab 像网页的页内锚点；桌面工具的一级导航要有分量。 */
+
+.cmdbar nav a {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  padding-inline: 1.05rem;
+  min-height: 3.9rem;
+}
+
+.cmdbar nav a svg {
+  flex: none;
+  opacity: 0.92;
+}
+
+.cmdbar nav a[aria-current='page'] svg {
+  opacity: 1;
+}
+
+.nav-text {
+  display: grid;
+  gap: 0.08rem;
+  line-height: 1.05;
+  text-align: left;
+}
+
+.nav-text small {
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  opacity: 0.55;
+}
+
+/* ---------- 控制台页面不放导语 ---------- */
+/* 桌面工具用界面本身表达，不用一句话解释自己要干什么。 */
+
+.wrap > .ef-head > p {
+  display: none;
+}
+
+/* ---------- 列表项：主标题 + 灰色副标题 ---------- */
+
+.version-list > li {
+  align-items: flex-start;
+  padding-block: 0.7rem;
+}
+
+.version-main {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.version-main .version-id {
+  font-size: 1rem;
+}
+
+.version-actions {
+  align-self: center;
+}
+
+/* ---------- 主操作占满一栏 ---------- */
+
+.setup .ef-actions .ef-btn {
+  min-height: 2.6rem;
+}
+
+/* ---------- 版本选择器 ---------- */
+
+.version-picker {
+  position: relative;
+}
+
+.version-picker > input {
+  width: 100%;
+}
+
+.version-options {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  max-height: 17rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--ef-panel);
+  border: 1px solid var(--ef-ink);
+  box-shadow: none;
+}
+
+.version-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.42rem 0.6rem;
+  cursor: pointer;
+  font-size: var(--ef-t-ui);
+}
+
+.version-option small {
+  color: var(--ef-ink-2);
+  font-size: var(--ef-t-field);
+  font-variant-numeric: tabular-nums;
+}
+
+.version-option.is-active {
+  background: var(--ef-signal);
+  color: var(--ef-on-signal);
+}
+
+.version-option.is-active small {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.version-option.is-empty {
+  color: var(--ef-ink-2);
+  cursor: default;
+  font-size: var(--ef-t-field);
+}
+
+/* ---------- 操作条吸底：主操作不该滚出视野 ---------- */
+
+.setup .ef-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  padding-block: 0.7rem;
+  background: var(--ef-panel);
+  border-top: 1px solid var(--ef-rule);
+}

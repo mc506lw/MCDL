@@ -10,8 +10,10 @@ interface Props {
 
 /**
  * 深色命令栏，同时也是窗口标题栏（tauri.conf.json 里 decorations: false）。
- * 当前分区是一整块强调色；拖拽区靠 data-tauri-drag-region，
- * 按钮是它自己的目标元素，所以点按钮不会拖动窗口。
+ *
+ * 图标 + 中文 + 英文小字的三段式，是桌面工具的一级导航该有的分量：
+ * 只有文字的小 tab 更像网页的页内锚点。当前分区是一整块强调色；
+ * 拖拽区靠 data-tauri-drag-region，按钮是它自己的目标元素，点按钮不会拖窗口。
  */
 export function CommandBar({ section, onSection, demo }: Props) {
   return (
@@ -45,8 +47,11 @@ export function CommandBar({ section, onSection, demo }: Props) {
               onSection(item.id);
             }}
           >
-            {item.zh}
-            <small>{item.en}</small>
+            <SectionIcon id={item.id} />
+            <span className="nav-text">
+              {item.zh}
+              <small>{item.en}</small>
+            </span>
           </a>
         ))}
       </nav>
@@ -54,7 +59,7 @@ export function CommandBar({ section, onSection, demo }: Props) {
       <div className="util">
         {demo && (
           <span className="ef-state is-draft demo" title="预览模式：内置演示队列">
-            演示数据
+            预览
           </span>
         )}
         <button className="ef-btn small" type="button" data-theme-toggle>
@@ -64,6 +69,58 @@ export function CommandBar({ section, onSection, demo }: Props) {
       </div>
     </header>
   );
+}
+
+/** 分区图标。几何线条，跟着 currentColor 走，不用任何游戏素材。 */
+function SectionIcon({ id }: { id: Section }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'square' as const,
+    'aria-hidden': true,
+  };
+
+  switch (id) {
+    case 'install':
+      // 向下箭头落进托盘
+      return (
+        <svg {...common}>
+          <path d="M12 3v11" />
+          <path d="M7.5 10.5 12 15l4.5-4.5" />
+          <path d="M4 20h16" />
+        </svg>
+      );
+    case 'versions':
+      // 层叠的版本卡片
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="4" width="17" height="5" />
+          <rect x="3.5" y="10.5" width="17" height="5" />
+          <path d="M3.5 17.5h17" />
+        </svg>
+      );
+    case 'logs':
+      // 文本行
+      return (
+        <svg {...common}>
+          <path d="M5 6h14M5 11h14M5 16h9" />
+        </svg>
+      );
+    case 'settings':
+      // 方框 + 内点，表示参数
+      return (
+        <svg {...common}>
+          <rect x="4" y="4" width="16" height="16" />
+          <path d="M9 12h6M12 9v6" />
+        </svg>
+      );
+    default:
+      return null;
+  }
 }
 
 async function windowAction(action: 'minimize' | 'maximize' | 'close') {
