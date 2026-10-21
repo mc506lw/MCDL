@@ -27,3 +27,6 @@ tmp-*/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 发版产物
+dist-release/
